@@ -1,0 +1,29 @@
+.sprout-art {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  pointer-events: none;
+  transform-origin: 50% 88%;
+  filter: drop-shadow(0 1px 1px rgba(255,255,255,.7));
+}
+.sprout-viewport { position: absolute; inset: 0; overflow: hidden; }
+#sproutFrames {
+  display: block;
+  max-width: none;
+  width: 2196px;
+  height: 36px;
+  visibility: hidden;
+  transform: translateX(-2160px);
+}
+.sprout-art.is-ready #sproutFrames { visibility: visible; }
+.sprout-fallback { position: absolute; inset: 0; width: 36px; height: 36px; }
+.sprout-art.is-ready .sprout-fallback { display: none; }
+.sprout-art.is-swaying { animation: sprout-sway 3.6s ease-in-out infinite; }
+.sprout-art[data-motion="paused"] { animation-play-state: paused; }
+@keyframes sprout-sway {
+  0%,100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sprout-art.is-swaying { animation: none; }
+}

@@ -1,0 +1,21 @@
+[aria-invalid="true"] {
+  border-color: #ad705d !important;
+  box-shadow: inset 0 0 0 1px #ad705d55;
+  outline-color: #ad705d;
+}
+[aria-invalid="true"]:focus-visible { outline: 2px solid #ad705d99; outline-offset: 2px; }
+.field-feedback {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  margin: 6px 0 8px;
+  padding: 7px 9px;
+  border: 1px solid #bd8a742c;
+  border-radius: 7px;
+  background: #f6e9df;
+  color: #92513e;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.todo-composer + .field-feedback { margin: 0 14px 8px; }

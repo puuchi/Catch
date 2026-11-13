@@ -1,0 +1,16 @@
+const fs=require('node:fs'),path=require('node:path')
+const {build}=require('./build.cjs')
+const project=path.resolve(__dirname,'../..')
+const source=path.join(project,'site')
+const artifacts=path.join(project,'artifacts')
+const output=path.resolve(artifacts,'pages')
+
+build()
+// Clear only this tool's generated directory, never the source tree.
+if(path.dirname(output)!==artifacts || path.basename(output)!=='pages')throw new Error('Unexpected Pages output directory')
+fs.rmSync(output,{recursive:true,force:true})
+fs.mkdirSync(output,{recursive:true})
+for(const file of ['index.html','app.js','app.css'])fs.copyFileSync(path.join(source,file),path.join(output,file))
+fs.cpSync(path.join(source,'assets'),path.join(output,'assets'),{recursive:true})
+fs.writeFileSync(path.join(output,'.nojekyll'),'')
+console.log('Pages static files prepared in artifacts/pages/.')

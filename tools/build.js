@@ -1,0 +1,6 @@
+const fs=require('node:fs')
+const path=require('node:path')
+const esbuild=require('esbuild')
+const root=path.resolve(__dirname,'..')
+fs.mkdirSync(path.join(root,'src/ui/generated'),{recursive:true})
+esbuild.buildSync({entryPoints:{main:'src/ui/main.js',bubble:'src/ui/sprout/controller.js'},outdir:'src/ui/generated',bundle:true,platform:'browser',target:'chrome120',logLevel:'warning'})

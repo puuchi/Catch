@@ -1,0 +1,4 @@
+{
+  "compilerOptions": {"allowJs":true,"checkJs":true,"noEmit":true,"target":"ES2022","module":"commonjs","skipLibCheck":true,"types":["node"]},
+  "include":["src/domain/**/*.js","src/application/**/*.js","src/contracts/**/*.js","src/infrastructure/**/*.js","src/desktop/**/*.js","src/bootstrap/**/*.js","src/preload/**/*.js"]
+}

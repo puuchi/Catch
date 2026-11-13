@@ -1,0 +1,10 @@
+* text=auto
+*.js text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.cmd text eol=crlf
+*.png binary
+*.ico binary
+*.ttf binary
+assets/fonts/*-OFL.txt whitespace=-blank-at-eol

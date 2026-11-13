@@ -1,0 +1,5 @@
+html,body {margin:0;width:36px;height:36px;overflow:hidden;background:transparent;user-select:none}
+.bubble {width:36px;height:36px;position:relative;display:grid;place-items:center;cursor:grab}
+.bubble:active {cursor:grabbing}
+#activityDot {position:absolute;right:1px;bottom:2px;width:8px;height:8px;border-radius:50%;background:#9ca3af;border:1px solid white;pointer-events:none}
+#activityDot.running {background:#34c759} #activityDot.paused {background:#ed9a26}

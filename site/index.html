@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Catch 是一款悬浮在 Windows 桌面的待办与计时工具。在线体验待办、投入记录、时间轴和悬浮绿芽。">
+  <meta name="theme-color" content="#f8f7f1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'self'; form-action 'none'">
+  <title>Catch — 记下想做的，看见做过的</title>
+  <link rel="icon" href="assets/app-icon.png">
+  <link rel="stylesheet" href="app.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <header class="site-header wrap">
+    <a class="wordmark" href="#" aria-label="Catch 首页"><img src="assets/app-icon.png" width="32" height="32" alt=""><span>Catch</span></a>
+    <nav aria-label="主导航"><a href="#experience">体验一下</a><a href="https://github.com/puuchi/Catch" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a><a class="nav-download" href="#download">下载 <span aria-hidden="true">↓</span></a></nav>
+  </header>
+
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="status-dot"></span> 轻轻陪在桌面上</p>
+        <h1 id="hero-title">记下想做的，<br><span>看见做过的。</span></h1>
+        <p class="hero-description">一个桌面小窗，装下待办、正在做的事，<br class="desktop-break">和每一次投入。收起时，是一株小绿芽。</p>
+        <div class="hero-actions"><a class="button primary" href="https://github.com/puuchi/Catch/releases/download/v2.0.0/Catch-2.0.0-x64-win.exe"><span data-icon="download"></span>下载 Windows 版</a><a class="text-link" href="#experience">先体验一下 <span aria-hidden="true">↗</span></a></div>
+        <p class="hero-meta">Windows 10 / 11 · x64 · 免费开源</p>
+        <div class="hero-note"><span class="small-rule"></span><p>计划可以很小。<br>每一次投入，都值得被记住。</p></div>
+      </div>
+
+      <div class="demo-shell" id="experience" aria-label="Catch 交互演示">
+        <div class="demo-caption"><span><span class="status-dot"></span> 可以点，也可以拖动</span><button id="reset-demo" class="reset-button"><span data-icon="reset"></span>重置演示</button></div>
+        <div class="desktop-scene" id="demo-stage">
+          <div class="scene-light" aria-hidden="true"></div>
+          <p class="scene-motto" aria-hidden="true">一点点，<br>也算前进。</p>
+          <div class="scene-note" aria-hidden="true"><span class="note-line"></span>专心做眼前的事</div>
+
+          <section class="catch-window" id="catch-window" aria-label="示例 Catch 窗口">
+            <header class="app-titlebar" id="window-handle"><div class="app-brand"><img src="assets/app-icon.png" width="22" height="22" alt=""><strong>Catch</strong><span class="demo-tag">演示</span></div><button id="collapse-window" class="icon-button" aria-label="收起为绿芽" title="收起为绿芽"><span data-icon="collapse"></span></button></header>
+            <div class="app-tabs" role="tablist" aria-label="演示页面"><button role="tab" id="tab-todos" data-tab="todos" aria-controls="panel-todos" aria-selected="true"><span data-icon="list"></span>待办</button><button role="tab" id="tab-current" data-tab="current" aria-controls="panel-current" aria-selected="false" tabindex="-1"><span data-icon="timer"></span>正在做<span class="tab-dot" id="tab-status"></span></button><button role="tab" id="tab-timeline" data-tab="timeline" aria-controls="panel-timeline" aria-selected="false" tabindex="-1"><span data-icon="timeline"></span>时间轴</button></div>
+
+            <section class="app-panel todo-panel" role="tabpanel" id="panel-todos" aria-labelledby="tab-todos">
+              <form id="add-todo-form" class="todo-composer"><label class="sr-only" for="todo-input">新增示例待办</label><input id="todo-input" data-empty-message="先记下一件想做的事" maxlength="80" placeholder="添加待办…（Enter）" autocomplete="off" required><button class="icon-button" type="submit" title="添加待办" aria-label="添加待办"><span data-icon="plus"></span></button></form>
+              <ul id="demo-todos" class="demo-todos"></ul>
+              <div class="todo-summary"><span id="todo-count"></span><span>小步前进就好</span></div>
+            </section>
+
+            <section class="app-panel current-panel" role="tabpanel" id="panel-current" aria-labelledby="tab-current" hidden>
+              <div class="current-card"><div class="current-topline"><span id="current-state" class="current-state">准备继续</span><span id="current-started"></span></div><h2 id="current-name"></h2><div class="timer-line"><output id="demo-timer" aria-label="累计投入时间">00:12:34</output><div class="timer-buttons"><button id="toggle-timer" class="timer-button" aria-label="继续计时"></button><button id="end-timer" class="timer-button" aria-label="结束事项" title="结束事项"><span data-icon="stop"></span></button></div></div><div id="completed-summary" class="completed-summary" hidden><span id="current-visits"></span><button id="restart-matter" type="button" aria-label="重新开始当前事项" title="沿用此事项新增一次投入，保留累计时长和历史进展"><span data-icon="play"></span>重新开始</button></div><form id="progress-form" class="progress-form"><label class="sr-only" for="progress-input">本次进展</label><input id="progress-input" placeholder="本次进展…" maxlength="2000" autocomplete="off"><button id="save-progress" type="submit" class="icon-button" aria-label="保存本次进展" title="保存本次进展"><span data-icon="check"></span></button><button id="next-step" type="button" class="icon-button" aria-label="保存进展并进入下一步" title="下一步"><span data-icon="next"></span></button></form><p id="progress-feedback" class="progress-feedback" aria-live="polite"></p></div>
+              <section id="background-area" class="background-area"><div class="background-topline"><span id="background-count"></span><button id="background-toggle" class="icon-button" type="button" aria-expanded="true" aria-controls="paused-matters" aria-label="收起暂停事项"><span data-icon="chevron"></span></button></div><div id="paused-matters" class="paused-matters"></div></section>
+              <form id="start-matter-form" class="start-matter-form"><label for="matter-input">开始一件新事情</label><div data-validation-anchor><input id="matter-input" data-empty-message="先写下准备做的事" maxlength="200" placeholder="你现在准备做什么？" autocomplete="off" required><button type="submit">开始</button></div></form>
+            </section>
+
+            <section class="app-panel timeline-panel" role="tabpanel" id="panel-timeline" aria-labelledby="tab-timeline" hidden>
+              <div class="timeline-toolbar"><button id="previous-day" aria-label="前一天" type="button">‹</button><input id="timeline-date" type="date" aria-label="时间轴日期"><button id="next-day" aria-label="后一天" type="button">›</button><button id="today-button" type="button">今天</button></div>
+              <div class="timeline-total"><span><span id="timeline-total-label">今日已记录</span> <strong id="timeline-total"></strong></span><div class="timeline-tools"><button id="toggle-legend" type="button" class="icon-button" aria-label="颜色说明" aria-expanded="false" aria-controls="timeline-legend"><span data-icon="info"></span></button><span class="preview-tooltip-anchor"><button id="add-record" type="button" class="icon-button preview-only-button" aria-label="补录" aria-disabled="true" aria-describedby="backfill-tip"><span data-icon="plus"></span></button><span id="backfill-tip" class="preview-tooltip" role="tooltip">补录可在桌面版中使用</span></span></div></div>
+              <div id="timeline-legend" class="timeline-legend" hidden><p>颜色区分事项，深浅表示时长</p><div><span><i style="opacity:.3"></i>＜15 分</span><span><i style="opacity:.5"></i>15–30</span><span><i style="opacity:.75"></i>30–60</span><span><i></i>≥60 分</span></div></div>
+              <div id="demo-timeline" class="demo-timeline"></div><div id="timeline-detail" class="timeline-detail" hidden></div><button id="clear-focus" class="clear-focus" hidden>显示全部</button>
+            </section>
+
+            <footer class="app-footer"><span><span data-icon="lock"></span> 仅在本页体验</span><span id="app-footer-state">准备好了</span></footer>
+
+          </section>
+
+          <button id="sprout-button" class="sprout-button" aria-label="展开 Catch 演示窗口" hidden>
+            <span id="sproutArt" class="sprout-art" data-phase="still" data-motion="paused" aria-hidden="true"><span class="sprout-viewport"><img id="sproutFrames" src="assets/sprout/growing-plant-sprite.png" data-frames="61" data-start-frame="15" data-duration="2017" alt="" draggable="false"></span><svg class="sprout-fallback" viewBox="0 0 36 36" fill="none"><path d="M18 30V18" stroke="#2e5a49" stroke-width="2" stroke-linecap="round"/><path d="M18 21C9 22 6 16 7 10C14 9 19 14 18 21Z" fill="#78a462"/><path d="M18 17C17 10 22 5 29 6C30 13 25 18 18 17Z" fill="#94b87c"/></svg></span><span id="sprout-status" class="sprout-status"></span>
+          </button>
+          <p id="demo-hint" class="demo-hint"><span aria-hidden="true">↑</span> 点一下播放键，开始你的第一段投入</p>
+        </div>
+        <p class="demo-footnote">这里展示 Catch 的部分功能。下载桌面版，体验完整交互。<br>演示记录仅在本页有效，刷新或重置后恢复示例。</p>
+        <p id="demo-announcement" class="sr-only" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="workflow wrap" aria-labelledby="workflow-title">
+      <div class="section-intro"><p class="eyebrow">从想做，到做过</p><h2 id="workflow-title">让一天的投入，<br>留下清楚的脉络。</h2><p>不必先整理好一套复杂的系统。<br>从手边的一件小事开始。</p></div>
+      <div class="workflow-steps">
+        <article><span class="step-number">01</span><div><h3>先记下，给念头一个落点。</h3><p>要做的事、几句备注、一个截止日期。随手记进待办，腾出脑子去想更重要的事。</p><button class="inline-action" data-demo-view="todos">试试记一条待办 <span aria-hidden="true">↗</span></button></div></article>
+        <article><span class="step-number">02</span><div><h3>开始做，把注意力留给眼前。</h3><p>点一下开始，忙别的就暂停，回来再继续。每次投入都能留下进展，知道下一次从哪里接着做。</p><button class="inline-action" data-demo-view="current">体验计时与进展 <span aria-hidden="true">↗</span></button></div></article>
+        <article><span class="step-number">03</span><div><h3>回头看，原来已经做了这些。</h3><p>时间轴把一段段投入连起来。看看做过什么、花了多久，也可以补录或修正应用里的真实记录。</p><button class="inline-action" data-demo-view="timeline">看看示例时间轴 <span aria-hidden="true">↗</span></button></div></article>
+      </div>
+    </section>
+
+    <section class="quiet-section wrap" aria-labelledby="quiet-title"><div class="quiet-mark" aria-hidden="true"><span data-icon="leaf"></span></div><p class="eyebrow">用不到时，轻轻收起来</p><h2 id="quiet-title">桌面上，留一株小绿芽。</h2><p>计时仍在继续，窗口暂时退到一边。<br>需要时点开，就回到刚才的事情。</p><button class="button secondary" id="try-sprout"><span data-icon="leaf"></span>试试收起为绿芽</button><div class="quiet-facts"><span><span data-icon="lock"></span>记录保存在本机</span><span><span data-icon="user"></span>无需注册账号</span><span><span data-icon="offline"></span>日常离线可用</span></div></section>
+
+    <section class="faq wrap" aria-labelledby="faq-title"><div class="section-intro"><p class="eyebrow">开始之前</p><h2 id="faq-title">几个你可能<br>想知道的问题。</h2></div><div class="faq-list">
+      <details><summary>网页演示和桌面应用有什么区别？<span aria-hidden="true">＋</span></summary><p>这里展示待办、计时、重新开始、前后台切换、进展与时间轴等部分交互，操作只在本页有效。下载桌面版，可以保存真实记录，并体验补录、截止日期、回收站、详细编辑和锁屏暂停等完整功能。网页里的拖动仅发生在演示区域内。</p></details>
+      <details><summary>Catch 免费吗？支持什么系统？<span aria-hidden="true">＋</span></summary><p>Catch 是免费的个人开源项目。当前提供 Windows 10 / 11 的 x64 版本，安装后即可离线使用，不需要 Node.js。原创代码采用 MIT，字体和绿芽素材遵循各自许可证。</p></details>
+      <details><summary>我的记录存在哪里？<span aria-hidden="true">＋</span></summary><p>桌面应用的记录保存在本机 <code>%APPDATA%\float-todo</code>，目录名为兼容旧版本保留。无需注册账号。备份时先正常退出，再复制整个数据目录。</p></details>
+      <details><summary>怎样安装和更新？<span aria-hidden="true">＋</span></summary><p>下载安装包后双击安装，或完整解压免安装版后运行 Catch.exe。更新前退出旧版并备份记录，再安装新版本。当前没有自动更新，安装包也尚未签名，Windows 可能显示发布者未知或信誉提示，请核对下载来源及 Release 中的校验文件。</p></details>
+    </div></section>
+
+    <section class="download-section wrap" id="download" aria-labelledby="download-title"><div><p class="eyebrow">从眼前的一件事开始</p><h2 id="download-title">给想做的事，<br>一个小小的位置。</h2><p>Windows 10 / 11 · x64 · 免费开源</p></div><div class="download-actions"><a class="button primary" href="https://github.com/puuchi/Catch/releases/download/v2.0.0/Catch-2.0.0-x64-win.exe"><span data-icon="download"></span>下载 Windows 版</a><a class="text-link" href="https://github.com/puuchi/Catch/releases/download/v2.0.0/Catch-2.0.0-x64-win.zip">下载免安装版 ZIP <span aria-hidden="true">↗</span></a><a class="muted-link" href="https://github.com/puuchi/Catch/releases" target="_blank" rel="noopener noreferrer">其他版本与校验文件</a></div></section>
+  </main>
+  <footer class="site-footer wrap"><a class="wordmark" href="#"><img src="assets/app-icon.png" width="24" height="24" alt=""><span>Catch</span></a><p>Made with care by <a href="https://github.com/puuchi">puuchi</a>.</p><nav aria-label="页脚导航"><a href="https://github.com/puuchi/Catch">GitHub ↗</a><a href="assets/LICENSE.txt">MIT</a><a href="assets/THIRD_PARTY_NOTICES.md">素材与致谢</a></nav></footer>
+  <noscript><p class="noscript">开启 JavaScript 后可以体验交互演示。你仍可通过下载链接获取桌面应用。</p></noscript>
+</body>
+</html>

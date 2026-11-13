@@ -1,0 +1,7 @@
+const icons=require('./shared/icons')
+require('./shared/form-validation').mountValidation()
+for(const node of document.querySelectorAll('[data-icon]'))node.replaceChildren(icons.create(node.dataset.icon))
+require('./todos/controller')(window.api)
+require('./tracking/controller')(window.api)
+require('./trash/controller')(window.api)
+require('./shared/appearance')(window.api)

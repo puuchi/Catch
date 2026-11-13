@@ -1,0 +1,61 @@
+.catch-window {
+  width: 260px;
+  height: 510px;
+  max-width: calc(100% - 26px);
+  left: max(13px, calc(50% - 130px));
+}
+.desktop-scene { min-height: 600px; }
+.current-panel { gap: 9px; }
+.current-card { flex-shrink: 0; padding: 11px 10px 7px; }
+.current-topline { flex-wrap: wrap; gap: 4px; margin-bottom: 9px; }
+.current-state { font-size: 9px; }
+.current-state.completed:before { background: #8c9b83; }
+.current-state.running:before { animation: demo-breathe 2.4s ease-in-out infinite; }
+@keyframes demo-breathe { 50% { opacity: .45; box-shadow: 0 0 0 3px #63806618; } }
+.timer-line { gap: 5px; margin: 9px 0 10px; }
+.timer-line output { font-size: 32px; letter-spacing: -1.5px; }
+.timer-buttons { flex-shrink: 0; gap: 4px; }
+.timer-button { width: 26px; height: 26px; }
+.completed-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin: 4px 0 9px; color: #64795b; font-size: 9px; }
+.completed-summary button { display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border: 1px solid #bdccb2; border-radius: 7px; background: #fffef5; color: #2e5a49; font-size: 9px; }
+.completed-summary button svg { width: 10px; height: 10px; }
+button:disabled { cursor: default; }
+.background-area { flex: 1; min-height: 84px; overflow: auto; }
+.background-topline { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+#background-count { font-size: 9px; color: #718267; }
+#background-toggle { min-width: 22px; min-height: 22px; }
+#background-toggle[aria-expanded=true] svg { transform: rotate(180deg); }
+.paused-matters { min-height: 0; overflow: visible; }
+.paused-item { gap: 5px; padding: 6px 0; }
+.paused-item .icon-button { min-width: 23px; min-height: 24px; padding: 4px; }
+.start-matter-form { flex-shrink: 0; }
+.app-footer { gap: 5px; padding: 9px 11px; }
+.app-footer > span:first-child { flex-shrink: 0; }
+.app-footer > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-panel { padding: 2px 11px 9px; }
+.timeline-toolbar { display: flex; align-items: center; gap: 4px; margin-bottom: 11px; }
+.timeline-toolbar button, .timeline-toolbar input {
+  min-width: 0; height: 29px; border: 1px solid #dce3d0; border-radius: 7px;
+  background: #fffef9; color: #355344; font: inherit; font-size: 10px;
+}
+.timeline-toolbar button { flex-shrink: 0; padding: 0 7px; }
+.timeline-toolbar input { flex: 1; width: 0; padding: 3px; }
+.timeline-toolbar input::-webkit-calendar-picker-indicator { width: 11px; padding: 0; margin: 0; }
+.timeline-total { display: flex; align-items: center; justify-content: space-between; gap: 3px; margin-bottom: 7px; }
+.timeline-total > span { min-width: 0; font-size: 9px; line-height: 1.6; }
+.timeline-tools { display: flex; flex-shrink: 0; }
+.timeline-tools .icon-button { min-width: 24px; min-height: 26px; padding: 4px; }
+.preview-tooltip-anchor { position: relative; display: inline-flex; }
+.preview-only-button { cursor: default; }
+.preview-tooltip { position: absolute; top: calc(100% + 5px); right: 0; width: max-content; max-width: 190px; padding: 8px 10px; background: #fffef7; border: 1px solid #d7dfcb; border-radius: 8px; box-shadow: 0 4px 14px #34513d12; font-size: 10px; line-height: 1.6; color: #526e49; visibility: hidden; opacity: 0; pointer-events: none; z-index: 5; }
+.preview-tooltip-anchor:hover .preview-tooltip, .preview-tooltip-anchor:focus-within .preview-tooltip { visibility: visible; opacity: 1; }
+.timeline-legend { background: #edf1e4; padding: 9px; border: 1px solid #dce4d0; border-radius: 8px; margin-bottom: 8px; color: #617558; font-size: 9px; }
+.timeline-legend p { margin: 0 0 7px; line-height: 1.6; }
+.timeline-legend > div { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.timeline-legend span { display: flex; align-items: center; gap: 5px; }
+.timeline-legend i { display: inline-block; width: 9px; height: 9px; background: #527b63; border-radius: 2px; }
+.timeline-empty { padding: 25px 8px; margin: 0; font-size: 11px; line-height: 1.9; color: #738567; }
+.timeline-entry-title { flex-wrap: wrap; gap: 3px; }
+.timeline-duration { margin-left: auto; }
+.clear-focus { display: block; margin: 9px 0 0 auto; font-size: 10px; padding: 5px; }
+@media (prefers-reduced-motion: reduce) { .current-state.running:before { animation: none; } }

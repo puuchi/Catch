@@ -1,0 +1,20 @@
+node_modules/
+runtime/
+runtime-*/
+dist/
+artifacts/
+src/ui/generated/
+site/app.js
+site/app.css
+*.log
+.env
+.env.*
+!.env.example
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+
+# Private audit snapshots and local machine paths are not part of the public project.
+docs/CATCH_PROVENANCE_EVIDENCE.json
+docs/CATCH_REBUILD_PLAN.md

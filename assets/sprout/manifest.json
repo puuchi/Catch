@@ -1,0 +1,16 @@
+{
+  "frameCount": 61,
+  "durationMs": 2017,
+  "growthStartFrame": 15,
+  "growthDurationMs": 1513,
+  "sourceFps": 60,
+  "logicalSize": 36,
+  "pixelRatio": 3,
+  "frameSize": 108,
+  "crop": {
+    "x": 68,
+    "y": 10,
+    "width": 322,
+    "height": 479
+  }
+}
