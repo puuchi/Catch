@@ -1,0 +1,16 @@
+[package]
+name = "catch-storage"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+catch-core = { path = "../catch-core" }
+serde.workspace = true
+serde_json.workspace = true
+atomicwrites = "0.4"
+fs2 = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

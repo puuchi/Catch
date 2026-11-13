@@ -14,6 +14,7 @@ site/app.css
 *.bak
 .DS_Store
 Thumbs.db
+target/
 
 # Private audit snapshots and local machine paths are not part of the public project.
 docs/CATCH_PROVENANCE_EVIDENCE.json
