@@ -95,11 +95,11 @@ impl Service {
         // become an empty successful snapshot.
         let growth = GrowthStore::open(disk.clone()).map_err(Error::storage)?;
         let mut todos = TodosStore::open(disk.clone()).map_err(Error::storage)?;
+        let tracking =
+            TrackingStore::open(disk, context.now, context.new_id).map_err(Error::storage)?;
         todos
             .refresh_recurrences(context.local_day)
             .map_err(Error::storage)?;
-        let tracking =
-            TrackingStore::open(disk, context.now, context.new_id).map_err(Error::storage)?;
         Ok(Self {
             tracking,
             todos,

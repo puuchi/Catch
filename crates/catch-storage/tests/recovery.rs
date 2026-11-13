@@ -356,6 +356,20 @@ fn future_trash_schema_is_protected_even_with_a_readable_backup() {
 }
 
 #[test]
+fn future_resource_kinds_do_not_fall_back_and_erase_associations() {
+    let disk = Arc::new(Memory::default());
+    let mut store = TrackingStore::open(disk.clone(), 0, "open-1").unwrap();
+    start(&mut store);
+    store.checkpoint(30_000).unwrap();
+    let mut value = serde_json::to_value(store.snapshot()).unwrap();
+    value["activities"][0]["resources"] = serde_json::json!([{"id":"new","kind":"future-document","title":"资料","target":"D:/a.txt"}]);
+    disk.put("activity-log.json", &serde_json::to_vec(&value).unwrap());
+    let before = disk.files.lock().unwrap().clone();
+    assert!(TrackingStore::open(disk.clone(), 60_000, "open-2").is_err());
+    assert_eq!(*disk.files.lock().unwrap(), before);
+}
+
+#[test]
 fn migration_backup_is_byte_exact_and_a_failed_backup_never_changes_main() {
     let disk = Arc::new(Memory::default());
     let mut store = TrackingStore::open(disk.clone(), 0, "open-1").unwrap();
