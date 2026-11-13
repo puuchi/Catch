@@ -28,6 +28,10 @@ pub struct Todo {
     pub completed_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resources: Vec<crate::resources::Resource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recurrence: Option<crate::recurrence::Occurrence>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -38,7 +42,7 @@ pub struct Document {
     #[serde(default)]
     pub revision: u64,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Fields {
     pub text: String,
     #[serde(default)]
@@ -48,7 +52,7 @@ pub struct Fields {
     pub deadline: Option<String>,
 }
 impl Fields {
-    fn normalized(&self) -> Result<Self> {
+    pub(crate) fn normalized(&self) -> Result<Self> {
         if self.text.trim().is_empty() || text_length(self.text.trim()) > 80 {
             return Err("待办内容须为 1–80 个字符".into());
         }
@@ -95,7 +99,12 @@ pub enum Command {
         id: String,
     },
     Archive,
+    SetResources {
+        id: String,
+        resources: Vec<crate::resources::Resource>,
+    },
 }
+#[derive(Clone, Copy)]
 pub struct Context<'a> {
     pub now: i64,
     pub local_day: &'a str,
@@ -105,6 +114,10 @@ pub struct Context<'a> {
 pub fn validate_records(records: &[Todo]) -> Result<()> {
     let mut ids = HashSet::new();
     for row in records {
+        crate::resources::validate_list(&row.resources)?;
+        if let Some(occurrence) = &row.recurrence {
+            occurrence.validate()?;
+        }
         if row.id.is_empty() || !ids.insert(&row.id) {
             return Err("待办记录无效或 ID 重复".into());
         }
@@ -201,6 +214,8 @@ impl Document {
                         done: false,
                         completed_at: None,
                         deleted_at: None,
+                        resources: vec![],
+                        recurrence: None,
                         extra: BTreeMap::new(),
                     },
                 );
@@ -240,6 +255,14 @@ impl Document {
                     return Err("请先移入回收站".into());
                 }
                 next.todos.remove(index);
+            }
+            Command::SetResources { id, resources } => {
+                crate::resources::validate_list(resources)?;
+                let index = next.index(id)?;
+                if next.todos[index].deleted_at.is_some() {
+                    return Err("待办已删除".into());
+                }
+                next.todos[index].resources = resources.clone();
             }
             Command::Archive => {
                 next.archive = next.history();

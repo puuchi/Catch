@@ -81,7 +81,8 @@ fn stale_revision_leaves_original_unchanged() {
         .apply(
             &Command::Start {
                 name: "A".into(),
-                todo_id: None
+                todo_id: None,
+                resources: vec![],
             },
             5,
             Context {
@@ -99,7 +100,7 @@ fn legacy_sessions_and_extensions_survive_migration_and_recovery() {
         "id":"legacy","name":"阅读","startTime":"2026-11-13T23:30:00.000Z","endTime":null,"status":"running",
         "segments":[{"start":"2026-11-13T23:30:00.000Z","end":null}],"todoId":"todo-old",
         "createdAt":"2026-11-13T23:30:00.000Z","updatedAt":"2026-11-13T23:30:00.000Z","pauseReason":null,
-        "resources":[{"id":"file-1","path":"D:/资料/阅读.pdf"}]}],"custom":{"preserve":true}});
+        "customLinks":[{"id":"file-1","path":"D:/资料/阅读.pdf"}]}],"custom":{"preserve":true}});
     let state: Document = serde_json::from_value(input).unwrap();
     let migrated = state.migrated().unwrap();
     let recovered = migrated
@@ -109,7 +110,7 @@ fn legacy_sessions_and_extensions_survive_migration_and_recovery() {
     assert_eq!(matter.sessions.as_ref().unwrap()[0].id, "legacy:0");
     assert_eq!(matter.duration(i64::MAX, None).unwrap(), 60_000);
     assert_eq!(matter.todo_id.as_deref(), Some("todo-old"));
-    assert_eq!(matter.extra["resources"][0]["id"], "file-1");
+    assert_eq!(matter.extra["customLinks"][0]["id"], "file-1");
     assert_eq!(recovered.extra["custom"]["preserve"], true);
     assert!(state.activities[0].sessions.is_none());
 }

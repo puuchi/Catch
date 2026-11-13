@@ -39,8 +39,13 @@ fn decode(bytes: &[u8]) -> std::result::Result<Document, ReadError> {
             "无法识别活动回收站版本，请保留文件并使用兼容版本".into(),
         ));
     }
-    let state: Document =
-        serde_json::from_value(value).map_err(|error| ReadError::Invalid(error.to_string()))?;
+    let state: Document = serde_json::from_value(value).map_err(|error| {
+        if error.to_string().contains("unknown variant") {
+            ReadError::Future(format!("无法识别数据中的类型版本，原件已保留：{error}"))
+        } else {
+            ReadError::Invalid(error.to_string())
+        }
+    })?;
     state.validate().map_err(ReadError::Invalid)?;
     Ok(state)
 }

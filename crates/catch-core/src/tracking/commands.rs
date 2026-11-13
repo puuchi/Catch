@@ -2,6 +2,7 @@ use super::*;
 
 /// Supplied once at the serialized application boundary. A renderer may never
 /// choose the clock used for live tracking or generate persisted identities.
+#[derive(Clone, Copy)]
 pub struct Context<'a> {
     pub now: i64,
     pub new_id: &'a str,
@@ -19,6 +20,8 @@ pub enum Command {
         name: String,
         #[serde(default)]
         todo_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        resources: Vec<crate::resources::Resource>,
     },
     Pause {
         #[serde(default = "manual")]
@@ -92,6 +95,10 @@ pub enum Command {
     DeleteTrash {
         id: String,
     },
+    SetResources {
+        id: String,
+        resources: Vec<crate::resources::Resource>,
+    },
     Checkpoint,
 }
 fn manual() -> String {
@@ -135,6 +142,7 @@ fn fresh(doc: &Document, id: &str, name: String, time: &str, todo_id: Option<Str
         sessions: Some(vec![]),
         next_session_index: Some(0),
         todo_id,
+        resources: vec![],
         created_at: time.into(),
         updated_at: time.into(),
         pause_reason: None,
@@ -177,10 +185,12 @@ impl Document {
             Command::Start {
                 name: input,
                 todo_id,
+                resources,
             } => {
                 let name = name(input)?;
                 next.pause_current(now)?;
                 let mut matter = fresh(&next, context.new_id, name, &time, todo_id.clone());
+                matter.resources = resources.clone();
                 matter.append(&time)?;
                 next.no_overlap(&matter)?;
                 next.activities.push(matter);
@@ -730,6 +740,12 @@ impl Document {
                     .position(|entry| entry.id == *id)
                     .ok_or("回收站记录已不存在")?;
                 next.trash.remove(index);
+            }
+            Command::SetResources { id, resources } => {
+                crate::resources::validate_list(resources)?;
+                let index = next.index(id)?;
+                next.activities[index].resources = resources.clone();
+                next.activities[index].updated_at = time.clone();
             }
             Command::Checkpoint => {}
         }

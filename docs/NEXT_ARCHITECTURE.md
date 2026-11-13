@@ -23,6 +23,14 @@ Rust 应用服务持有唯一权威状态并串行执行命令。每次变更带
 
 当前验证命令为 `./tools/rust.ps1 -Action test` 和 `./tools/rust.ps1 -Action clippy`。行为对照样本来自原版 JavaScript 业务代码，存放于 `crates/catch-core/tests/fixtures`；测试不自行重生成预期结果。修改规则时，运行 `tools/tracking-parity.cjs` / `tools/todos-parity.cjs` 后必须审阅差异。
 
+## 新功能的状态归属
+
+- 每日植物和目标：`catch-growth.json`，由 Rust 保存后才确认选择。日期由可信宿主时区决定，不接受界面传入“今天”。历史选择不能被新日期或改目标覆盖；预览不写此文件。达成反馈先保存每日一次的记录，再通知界面。
+- 资料：待办和事项各自持有 `resources` 快照；从待办开始时复制。删除待办不会让事项资料失效。打开操作由桌面适配器根据已保存的关联 ID 查找目标；移除关联仅修改 JSON。
+- 周期：模板和游标在 `catch-recurrences.json`，实例保留在兼容的 `todos.json` 数组中。`catch-schedule-pending.json` 为两文件提供恢复事务；不会只保存新实例而遗漏游标。一个模板最多有一项未完成实例，漏过多期只生成最近一期；完成后推进到下一个未来计划日。月末日期不足时取当月最后一天。
+
+这些后端规则已有自动验证，仍待正式桌面适配器、Vue 交互和安装包联调。当前应用层只提供同步命令服务，Tauri 组合入口需要用单一互斥锁保护它，并在启动、恢复和跨日调用周期检查。
+
 ## 已验证的资源边界
 
 普通双 WebView Tauri 未明显降低内存；原生悬浮表面加按需主 WebView 的原型在这台机器上有收益。悬浮短测约 8.25 MB 私有工作集，展开约 99.91 MB；原型 NSIS 为 1.73 MiB。数字属于功能不完整的原型，成品需重新测量。内部原始证据保存在本地 `artifacts/catch-next/`。

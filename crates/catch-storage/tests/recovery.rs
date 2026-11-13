@@ -1,5 +1,5 @@
 use catch_core::{todos, tracking};
-use catch_storage::{Disk, FileDisk, ProfileLock, TodosStore, TrackingStore};
+use catch_storage::{Disk, FileDisk, GrowthStore, ProfileLock, TodosStore, TrackingStore};
 use std::{
     collections::BTreeMap,
     panic::{catch_unwind, AssertUnwindSafe},
@@ -75,6 +75,7 @@ fn start(store: &mut TrackingStore) {
         tracking::Command::Start {
             name: "阅读".into(),
             todo_id: Some("todo-1".into()),
+            resources: vec![],
         },
         0,
         "a",
@@ -94,7 +95,8 @@ fn failed_save_keeps_committed_state_and_does_not_admit_a_duplicate() {
         &mut store,
         tracking::Command::Start {
             name: "B".into(),
-            todo_id: None
+            todo_id: None,
+            resources: vec![],
         },
         1000,
         "b"
@@ -124,7 +126,8 @@ fn uncertain_write_blocks_further_commands_until_reopen() {
         &mut store,
         tracking::Command::Start {
             name: "B".into(),
-            todo_id: None
+            todo_id: None,
+            resources: vec![],
         },
         1000,
         "b"
@@ -397,4 +400,177 @@ fn missing_main_files_with_backups_are_not_treated_as_empty_profiles() {
     assert!(TodosStore::open(disk.clone()).is_err());
     disk.put("activity-log.json.bak", b"{}");
     assert!(TrackingStore::open(disk, 0, "open-1").is_err());
+}
+
+#[test]
+fn plant_is_locked_only_after_durable_selection_and_uncertain_writes_are_reconciled() {
+    use catch_core::growth::{Command, Context, Plant};
+    let context = || Context {
+        now: 0,
+        local_day: "2026-11-14",
+    };
+    let disk = Arc::new(Memory::default());
+    let mut store = GrowthStore::open(disk.clone()).unwrap();
+    disk.fail("catch-growth.json", false, false);
+    assert!(store
+        .command(&Command::Choose { plant: Plant::Corn }, 0, context())
+        .is_err());
+    assert!(store.snapshot().days.is_empty());
+    assert!(disk.read("catch-growth.json").unwrap().is_none());
+    disk.fail("catch-growth.json", true, false);
+    assert!(store
+        .command(
+            &Command::Choose {
+                plant: Plant::Strawberry
+            },
+            0,
+            context()
+        )
+        .is_err());
+    assert!(store.is_blocked());
+    assert!(store
+        .command(&Command::Choose { plant: Plant::Corn }, 0, context())
+        .is_err());
+    let mut restored = GrowthStore::open(disk).unwrap();
+    assert_eq!(
+        restored.snapshot().days["2026-11-14"].plant,
+        Plant::Strawberry
+    );
+    assert!(restored
+        .command(&Command::Choose { plant: Plant::Corn }, 1, context())
+        .is_err());
+}
+
+#[test]
+fn corrupt_growth_and_future_versions_do_not_reset_daily_choices() {
+    let disk = Arc::new(Memory::default());
+    for bytes in [
+        b"{broken".as_slice(),
+        br#"{"version":2,"days":{}}"#.as_slice(),
+    ] {
+        disk.put("catch-growth.json", bytes);
+        let before = disk.files.lock().unwrap().clone();
+        assert!(GrowthStore::open(disk.clone()).is_err());
+        assert_eq!(*disk.files.lock().unwrap(), before);
+    }
+}
+
+#[test]
+fn schedule_and_instance_commit_recover_together_after_each_crash_boundary() {
+    use catch_core::recurrence::{Command, Schedule};
+    for stage in [
+        "catch-schedule-pending.json",
+        "catch-recurrences.json",
+        "todos.json",
+    ] {
+        let disk = Arc::new(Memory::default());
+        let mut store = TodosStore::open(disk.clone()).unwrap();
+        disk.fail(stage, true, true);
+        let command = Command::Create {
+            fields: todos::Fields {
+                text: "每日阅读".into(),
+                notes: String::new(),
+                urgent: false,
+                deadline: None,
+            },
+            resources: vec![],
+            schedule: Schedule::Daily,
+            starts_on: "2026-11-14".into(),
+        };
+        assert!(catch_unwind(AssertUnwindSafe(|| store.recurrence_command(
+            &command,
+            0,
+            "2026-11-14",
+            "rule-1"
+        )))
+        .is_err());
+        let mut restored = TodosStore::open(disk.clone()).unwrap();
+        assert_eq!(restored.recurrences().templates.len(), 1, "{stage}");
+        assert_eq!(restored.snapshot().todos.len(), 1, "{stage}");
+        assert!(!restored.refresh_recurrences("2026-11-14").unwrap());
+        assert!(!restored.refresh_recurrences("2026-12-14").unwrap());
+        assert_eq!(
+            restored.snapshot().todos[0]
+                .recurrence
+                .as_ref()
+                .unwrap()
+                .scheduled_on,
+            "2026-11-14"
+        );
+        assert!(disk.read("catch-schedule-pending.json").unwrap().is_none());
+    }
+}
+
+#[test]
+fn completion_cursor_and_history_survive_restart_and_never_emit_twice_today() {
+    use catch_core::recurrence::{Command, Schedule};
+    let disk = Arc::new(Memory::default());
+    let mut store = TodosStore::open(disk.clone()).unwrap();
+    store
+        .recurrence_command(
+            &Command::Create {
+                fields: todos::Fields {
+                    text: "每日阅读".into(),
+                    notes: "保留备注".into(),
+                    urgent: false,
+                    deadline: None,
+                },
+                resources: vec![],
+                schedule: Schedule::Daily,
+                starts_on: "2026-11-01".into(),
+            },
+            0,
+            "2026-11-14",
+            "rule-1",
+        )
+        .unwrap();
+    let id = store.snapshot().todos[0].id.clone();
+    store
+        .command(
+            &todos::Command::Complete { id, done: true },
+            store.snapshot().revision,
+            todos::Context {
+                now: 0,
+                local_day: "2026-12-14",
+                new_id: "unused",
+            },
+        )
+        .unwrap();
+    let mut restored = TodosStore::open(disk).unwrap();
+    assert!(!restored.refresh_recurrences("2026-12-14").unwrap());
+    assert!(restored.refresh_recurrences("2026-12-15").unwrap());
+    assert_eq!(restored.snapshot().todos.len(), 2);
+    assert!(restored.snapshot().todos[1].done);
+    assert_eq!(restored.snapshot().todos[1].notes, "保留备注");
+    assert!(!restored.refresh_recurrences("2026-12-15").unwrap());
+}
+
+#[test]
+fn schedule_recovery_refuses_external_edits_and_keeps_both_originals() {
+    use catch_core::recurrence::{Command, Schedule};
+    let disk = Arc::new(Memory::default());
+    let mut store = TodosStore::open(disk.clone()).unwrap();
+    disk.fail("catch-schedule-pending.json", true, true);
+    let command = Command::Create {
+        fields: todos::Fields {
+            text: "阅读".into(),
+            notes: String::new(),
+            urgent: false,
+            deadline: None,
+        },
+        resources: vec![],
+        schedule: Schedule::Daily,
+        starts_on: "2026-11-14".into(),
+    };
+    assert!(catch_unwind(AssertUnwindSafe(|| store.recurrence_command(
+        &command,
+        0,
+        "2026-11-14",
+        "rule-1"
+    )))
+    .is_err());
+    disk.put("todos.json", b"[]");
+    let before = disk.files.lock().unwrap().clone();
+    assert!(TodosStore::open(disk.clone()).is_err());
+    assert_eq!(*disk.files.lock().unwrap(), before);
 }

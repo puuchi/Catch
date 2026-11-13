@@ -1,4 +1,6 @@
+use crate::schedule;
 use crate::{encode, Disk, Result};
+use catch_core::recurrence;
 use catch_core::todos::{validate_records, Command, Context, Document, Todo};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -69,10 +71,13 @@ pub struct TodosStore {
     state: Document,
     expected: Option<Vec<u8>>,
     expected_archive: Option<Vec<u8>>,
+    rules: recurrence::Document,
+    expected_rules: Option<Vec<u8>>,
     blocked: bool,
 }
 impl TodosStore {
     pub fn open(disk: Arc<dyn Disk>) -> Result<Self> {
+        schedule::recover(disk.as_ref())?;
         recover(disk.as_ref())?;
         let state = Document {
             todos: read(disk.as_ref(), TODOS)?,
@@ -81,16 +86,91 @@ impl TodosStore {
         };
         let expected = disk.read(TODOS)?;
         let expected_archive = disk.read(ARCHIVE)?;
+        let rules = schedule::read(disk.as_ref())?;
+        rules.validate_links(&state)?;
+        let expected_rules = disk.read(schedule::RULES)?;
         Ok(Self {
             disk,
             state,
             expected,
             expected_archive,
+            rules,
+            expected_rules,
             blocked: false,
         })
     }
     pub fn snapshot(&self) -> &Document {
         &self.state
+    }
+    pub fn is_blocked(&self) -> bool {
+        self.blocked
+    }
+    pub fn recurrences(&self) -> &recurrence::Document {
+        &self.rules
+    }
+    fn check_external(&mut self) -> Result<()> {
+        if self.blocked {
+            return Err("存储状态需要恢复，已停止写入".into());
+        }
+        if self.disk.read(PENDING)?.is_some() || self.disk.read(schedule::PENDING)?.is_some() {
+            self.blocked = true;
+            return Err("发现未完成事务，已停止写入，请退出后恢复".into());
+        }
+        if self.disk.read(TODOS)? != self.expected
+            || self.disk.read(ARCHIVE)? != self.expected_archive
+            || self.disk.read(schedule::RULES)? != self.expected_rules
+        {
+            self.blocked = true;
+            return Err("待办或周期文件被外部修改，已停止写入".into());
+        }
+        Ok(())
+    }
+    fn reload_after_failure(&mut self) -> Result<()> {
+        match Self::open(self.disk.clone()) {
+            Ok(mut recovered) => {
+                recovered.state.revision = self
+                    .state
+                    .revision
+                    .checked_add(1)
+                    .ok_or("待办版本超出范围")?;
+                *self = recovered;
+            }
+            Err(_) => self.blocked = true,
+        }
+        Ok(())
+    }
+    fn save_schedule(&mut self, candidate: recurrence::Candidate) -> Result<()> {
+        self.check_external()?;
+        if candidate.rules == self.rules && candidate.todos == self.state {
+            return Ok(());
+        }
+        if let Err(error) = schedule::write(self.disk.as_ref(), &candidate) {
+            self.reload_after_failure()?;
+            return Err(format!("周期保存未确认，请核对记录后重试：{error}"));
+        }
+        self.state = candidate.todos;
+        self.rules = candidate.rules;
+        self.expected = self.disk.read(TODOS)?;
+        self.expected_rules = self.disk.read(schedule::RULES)?;
+        Ok(())
+    }
+    pub fn recurrence_command(
+        &mut self,
+        command: &recurrence::Command,
+        revision: u64,
+        today: &str,
+        new_id: &str,
+    ) -> Result<()> {
+        let candidate = self
+            .rules
+            .command(command, &self.state, revision, today, new_id)?;
+        self.save_schedule(candidate)
+    }
+    pub fn refresh_recurrences(&mut self, today: &str) -> Result<bool> {
+        let candidate = self.rules.reconcile(&self.state, today)?;
+        let changed = candidate.rules != self.rules || candidate.todos != self.state;
+        self.save_schedule(candidate)?;
+        Ok(changed)
     }
     pub fn command(
         &mut self,
@@ -102,12 +182,17 @@ impl TodosStore {
             return Err("存储状态需要恢复，已停止写入".into());
         }
         let candidate = self.state.apply(command, revision, context)?;
-        if self.disk.read(TODOS)? != self.expected
-            || self.disk.read(ARCHIVE)? != self.expected_archive
-        {
-            self.blocked = true;
-            return Err("待办文件被外部修改，已停止写入".into());
+        let rules = self
+            .rules
+            .after_todo_change(&self.state, &candidate, context.local_day)?;
+        if rules != self.rules {
+            self.save_schedule(recurrence::Candidate {
+                rules,
+                todos: candidate,
+            })?;
+            return Ok(self.state.clone());
         }
+        self.check_external()?;
         let result = if matches!(command, Command::Archive) {
             let journal = Journal {
                 version: 1,
@@ -125,17 +210,7 @@ impl TodosStore {
         if let Err(error) = result {
             // A partially applied journal must be recovered and reloaded before
             // any further command. Preserve the original error for the caller.
-            match Self::open(self.disk.clone()) {
-                Ok(mut recovered) => {
-                    recovered.state.revision = self
-                        .state
-                        .revision
-                        .checked_add(1)
-                        .ok_or("待办版本超出范围")?;
-                    *self = recovered;
-                }
-                Err(_) => self.blocked = true,
-            }
+            self.reload_after_failure()?;
             return Err(format!("保存未确认，请核对记录后重试：{error}"));
         }
         self.state = candidate;

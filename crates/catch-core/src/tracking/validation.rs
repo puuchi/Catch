@@ -40,6 +40,7 @@ pub(super) fn validate_intervals(
 }
 impl Matter {
     pub fn validate(&self) -> Result<()> {
+        crate::resources::validate_list(&self.resources)?;
         if self.id.is_empty() {
             return Err("记录 ID 无效".into());
         }

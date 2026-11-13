@@ -2,9 +2,12 @@
 //! The desktop composition root must retain ProfileLock for the whole lifetime
 //! of all stores using the same directory.
 mod disk;
+mod growth;
+mod schedule;
 mod todos;
 mod tracking;
 pub use disk::{Disk, FileDisk, ProfileLock};
+pub use growth::GrowthStore;
 pub use todos::TodosStore;
 pub use tracking::TrackingStore;
 
