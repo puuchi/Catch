@@ -4,6 +4,9 @@ import Icon from './Icon.vue';
 import Modal from './Modal.vue';
 import { busy, dispatch, inform, state, ui } from '../store';
 import { day, human, duration } from '../display';
+import { useScroll } from '../scroll';
+const scroll = ref<HTMLElement>();
+const saveScroll = useScroll(scroll, () => `trash:${ui.trashFilter}`);
 const pending = ref<{ group: 'todos' | 'tracking'; id: string; name: string } | null>(null);
 const todos = computed(() =>
   ui.trashFilter === 'all' || ui.trashFilter === 'todo'
@@ -37,7 +40,7 @@ async function action(group: 'todos' | 'tracking', type: string, id: string) {
         <option value="session">单次记录</option>
       </select>
     </header>
-    <div class="recycle-list">
+    <div ref="scroll" class="recycle-list" @scroll="saveScroll">
       <article v-for="todo in todos" :key="todo.id" class="recycle-item">
         <strong>{{ todo.text }}</strong>
         <p class="muted small">待办 · {{ todo.deletedAt && day(Date.parse(todo.deletedAt)) }}</p>

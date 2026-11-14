@@ -22,6 +22,8 @@ chrono = "0.4"
 uuid = {version="1",features= ["v4"] }
 png = "0.18"
 rfd = "0.15"
+windows = {version="0.62",features= ["Win32_Foundation", "Win32_UI_Accessibility", "Win32_System_Com", "Win32_System_Ole", "Win32_System_Variant"] }
+windows-core = "0.62"
 
 [profile.release]
 codegen-units = 1

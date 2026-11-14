@@ -3,6 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { Boot, Group, Owner, Preferences, Reply, ResourceKind, UiState } from './models';
 export const host = {
+  layout: (generation: number, layout: Record<string, unknown>) =>
+    invoke('report_layout', { generation, layout }),
   boot: () => invoke<Boot>('boot'),
   command: (
     generation: number,

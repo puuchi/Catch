@@ -2,6 +2,66 @@ use catch_app::{Context, ErrorCode, Request, Service, UserCommand};
 use catch_core::{todos, tracking};
 use catch_storage::FileDisk;
 use std::sync::{Arc, Mutex};
+#[test]
+fn archived_todo_resources_can_be_opened_but_cannot_be_mutated() {
+    use catch_core::resources::{Command, Kind, Owner};
+    let (_dir, mut service) = fixture();
+    let owner = Owner::Todo {
+        id: "todo-1".into(),
+    };
+    let operations = [
+        UserCommand::Todos(todos::Command::Create(todos::Fields {
+            text: "材料".into(),
+            notes: String::new(),
+            urgent: false,
+            deadline: None,
+        })),
+        UserCommand::Resources(Command::Attach {
+            owner: owner.clone(),
+            kind: Kind::Web,
+            target: "https://example.com/".into(),
+            title: None,
+        }),
+        UserCommand::Todos(todos::Command::Complete {
+            id: "todo-1".into(),
+            done: true,
+        }),
+        UserCommand::Todos(todos::Command::Archive),
+    ];
+    for (index, operation) in operations.into_iter().enumerate() {
+        service
+            .execute(
+                Request {
+                    request_id: format!("archive-{index}"),
+                    expected_revision: index as u64,
+                    operation,
+                },
+                context(if index == 0 { "todo-1" } else { "resource-1" }),
+            )
+            .unwrap();
+    }
+    assert_eq!(
+        service
+            .resource_for_open(&owner, "resource-1")
+            .unwrap()
+            .target,
+        "https://example.com/"
+    );
+    assert!(service
+        .execute(
+            Request {
+                request_id: "mutate-history".into(),
+                expected_revision: 4,
+                operation: UserCommand::Resources(Command::Remove {
+                    owner,
+                    resource_id: "resource-1".into()
+                })
+            },
+            context("unused")
+        )
+        .is_err());
+    assert_eq!(service.snapshot().todos.archive[0].resources.len(), 1);
+}
 fn context(id: &str) -> Context<'_> {
     Context {
         now: 0,

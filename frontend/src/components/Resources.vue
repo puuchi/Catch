@@ -4,9 +4,13 @@ import Icon from './Icon.vue';
 import { host } from '../bridge';
 import { busy, dispatch, generation, inform, ui } from '../store';
 import type { Owner, Resource, ResourceKind } from '../models';
-const props = withDefaults(defineProps<{ owner: Owner; resources?: Resource[] }>(), {
-  resources: () => [],
-});
+const props = withDefaults(
+  defineProps<{ owner: Owner; resources?: Resource[]; readonly?: boolean }>(),
+  {
+    resources: () => [],
+    readonly: false,
+  },
+);
 const key = computed(() => `${props.owner.kind}:${props.owner.id}`),
   expanded = computed({
     get: () => ui.expandedResources?.includes(key.value) || false,
@@ -70,6 +74,7 @@ async function remove(resource: Resource) {
       <button class="quiet-button" :aria-expanded="expanded" @click="expanded = !expanded">
         <Icon name="clip" />{{ resources.length ? `资料 ${resources.length}` : '资料' }}</button
       ><button
+        v-if="!readonly"
         class="icon-button resource-add"
         title="添加资料"
         aria-label="添加资料"
@@ -79,7 +84,7 @@ async function remove(resource: Resource) {
         <Icon name="plus" />
       </button>
     </div>
-    <div v-if="adding" class="resource-options">
+    <div v-if="adding && !readonly" class="resource-options">
       <button @click="pick('file')">文件</button><button @click="pick('folder')">文件夹</button
       ><button @click="pick('web')">网页</button>
     </div>
@@ -98,9 +103,9 @@ async function remove(resource: Resource) {
         </button>
         <div v-if="menu === resource.id" class="resource-actions">
           <button @click="open(resource)">打开</button
-          ><button @click="pick(resource.kind, resource)">
+          ><button v-if="!readonly" @click="pick(resource.kind, resource)">
             {{ resource.kind === 'web' ? '修改地址' : '重新定位' }}</button
-          ><button @click="remove(resource)">移除关联</button>
+          ><button v-if="!readonly" @click="remove(resource)">移除关联</button>
         </div>
       </div>
     </div>

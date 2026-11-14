@@ -15,6 +15,14 @@ import {
   time,
 } from '../display';
 import type { Matter, Session } from '../models';
+import { useScroll } from '../scroll';
+const timelineScroll = ref<HTMLElement>(),
+  detailsScroll = ref<HTMLElement>();
+const saveTimelineScroll = useScroll(
+  timelineScroll,
+  () => `timeline:${ui.timelineDate}:${ui.focusedMatterId || 'all'}`,
+);
+const saveDetailsScroll = useScroll(detailsScroll, () => `matter:${ui.selectedMatterId}`);
 const details = computed(() =>
   state.value?.tracking.activities.find((m) => m.id === ui.selectedMatterId),
 );
@@ -102,7 +110,7 @@ function tint(color: string, ms: number) {
           <Icon name="trash" />
         </button>
       </header>
-      <div class="matter-detail-body">
+      <div ref="detailsScroll" class="matter-detail-body" @scroll="saveDetailsScroll">
         <div class="matter-title">
           <h2>{{ details.name }}</h2>
           <span class="timeline-status">{{ statusShort(details.status) }}</span>
@@ -185,7 +193,7 @@ function tint(color: string, ms: number) {
         <p>颜色区分事项，深浅表示时长</p>
         <span>＜15 分 · 15–30 · 30–60 · ≥60 分</span>
       </div>
-      <div class="timeline-list">
+      <div ref="timelineScroll" class="timeline-list" @scroll="saveTimelineScroll">
         <button
           v-if="ui.focusedMatterId"
           class="focus-clear quiet-button"

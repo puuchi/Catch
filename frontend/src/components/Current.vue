@@ -80,122 +80,124 @@ function today() {
 }
 </script>
 <template>
-  <section ref="scroll" class="module-page activity-page" aria-label="正在做" @scroll="saveScroll">
-    <div class="current-card" :data-resource-kind="'matter'" :data-resource-id="current?.id">
-      <div class="card-eyebrow">
-        <span class="current-status-label"
-          ><i class="status-dot" :class="current?.status" /><span>{{
-            statusText(current?.status)
-          }}</span></span
-        ><time v-if="current" class="muted small">{{ time(current.startTime) }} 开始</time>
-      </div>
-      <h1 id="currentName">{{ current?.name || '未开始活动' }}</h1>
-      <div class="current-timer-row">
-        <div class="current-timer">{{ clock(current ? duration(current, now) : 0) }}</div>
-        <div v-if="current && current.status !== 'completed'" class="activity-actions">
-          <button
+  <section class="module-page activity-page" aria-label="正在做">
+    <div ref="scroll" class="current-content" @scroll="saveScroll">
+      <div class="current-card" :data-resource-kind="'matter'" :data-resource-id="current?.id">
+        <div class="card-eyebrow">
+          <span class="current-status-label"
+            ><i class="status-dot" :class="current?.status" /><span>{{
+              statusText(current?.status)
+            }}</span></span
+          ><time v-if="current" class="muted small">{{ time(current.startTime) }} 开始</time>
+        </div>
+        <h1 id="currentName">{{ current?.name || '未开始活动' }}</h1>
+        <div class="current-timer-row">
+          <div class="current-timer">{{ clock(current ? duration(current, now) : 0) }}</div>
+          <div v-if="current && current.status !== 'completed'" class="activity-actions">
+            <button
+              :disabled="!!busy"
+              :title="current.status === 'running' ? '暂停' : '继续'"
+              :aria-label="current.status === 'running' ? '暂停当前事项' : '继续当前事项'"
+              @click="
+                action(
+                  current.status === 'running' ? 'pause' : 'resume',
+                  current.status === 'running' ? {} : { id: current.id },
+                )
+              "
+            >
+              <Icon :name="current.status === 'running' ? 'pause' : 'play'" /></button
+            ><button
+              title="结束"
+              aria-label="结束整个事项"
+              :disabled="!!busy"
+              @click="action('end', { id: current.id })"
+            >
+              <Icon name="stop" />
+            </button>
+          </div>
+        </div>
+        <div v-if="current?.status === 'completed'" class="completed-summary">
+          <span>{{ current.sessions.length }} 次投入</span
+          ><button
             :disabled="!!busy"
-            :title="current.status === 'running' ? '暂停' : '继续'"
-            :aria-label="current.status === 'running' ? '暂停当前事项' : '继续当前事项'"
             @click="
-              action(
-                current.status === 'running' ? 'pause' : 'resume',
-                current.status === 'running' ? {} : { id: current.id },
-              )
+              action('update-matter', { id: current.id, name: current.name, status: 'running' })
             "
           >
-            <Icon :name="current.status === 'running' ? 'pause' : 'play'" /></button
-          ><button
-            title="结束"
-            aria-label="结束整个事项"
-            :disabled="!!busy"
-            @click="action('end', { id: current.id })"
-          >
-            <Icon name="stop" />
+            <Icon name="play" />重新开始
           </button>
         </div>
-      </div>
-      <div v-if="current?.status === 'completed'" class="completed-summary">
-        <span>{{ current.sessions.length }} 次投入</span
-        ><button
-          :disabled="!!busy"
-          @click="
-            action('update-matter', { id: current.id, name: current.name, status: 'running' })
-          "
+        <form
+          v-if="current && lastSession && current.status !== 'completed'"
+          class="progress-form"
+          @submit.prevent="saveProgress()"
         >
-          <Icon name="play" />重新开始
-        </button>
+          <input
+            v-model="progress"
+            aria-label="本次进展"
+            placeholder="本次进展…"
+            maxlength="2000"
+            @blur="blurProgress"
+          /><button
+            type="button"
+            :disabled="!!busy || current.status !== 'running' || !progress.trim()"
+            title="保存本次并开始下一步"
+            aria-label="保存本次并开始下一步"
+            @pointerdown.prevent
+            @click="saveProgress(true)"
+          >
+            <Icon name="next" />
+          </button>
+        </form>
+        <Resources
+          v-if="current"
+          :owner="{ kind: 'matter', id: current.id }"
+          :resources="current.resources"
+        />
       </div>
-      <form
-        v-if="current && lastSession && current.status !== 'completed'"
-        class="progress-form"
-        @submit.prevent="saveProgress()"
+      <section
+        v-if="background.length"
+        class="background-activities"
+        :class="{ collapsed: !ui.backgroundOpen }"
       >
-        <input
-          v-model="progress"
-          aria-label="本次进展"
-          placeholder="本次进展…"
-          maxlength="2000"
-          @blur="blurProgress"
-        /><button
-          type="button"
-          :disabled="!!busy || current.status !== 'running' || !progress.trim()"
-          title="保存本次并开始下一步"
-          aria-label="保存本次并开始下一步"
-          @pointerdown.prevent
-          @click="saveProgress(true)"
-        >
-          <Icon name="next" />
-        </button>
-      </form>
-      <Resources
-        v-if="current"
-        :owner="{ kind: 'matter', id: current.id }"
-        :resources="current.resources"
-      />
-    </div>
-    <section
-      v-if="background.length"
-      class="background-activities"
-      :class="{ collapsed: !ui.backgroundOpen }"
-    >
-      <div class="background-toggle">
-        <span>后台 · {{ background.length }}</span
-        ><button
-          class="icon-button"
-          :aria-expanded="ui.backgroundOpen"
-          aria-label="展开或收起后台事项"
-          @click="ui.backgroundOpen = !ui.backgroundOpen"
-        >
-          <Icon name="chevron" />
-        </button>
-      </div>
-      <div v-if="ui.backgroundOpen" class="paused-activity-list">
-        <div v-for="matter in background" :key="matter.id" class="background-item">
-          <div class="background-content">
-            <div class="background-name">{{ matter.name }}</div>
-            <span class="muted small">{{ human(duration(matter, now)) }}</span>
-          </div>
-          <button
-            class="icon-button"
-            :disabled="!!busy"
-            :aria-label="`继续 ${matter.name}`"
-            title="继续"
-            @click="action('resume', { id: matter.id })"
-          >
-            <Icon name="play" /></button
+        <div class="background-toggle">
+          <span>后台 · {{ background.length }}</span
           ><button
             class="icon-button"
-            :disabled="!!busy"
-            :aria-label="`结束 ${matter.name}`"
-            title="结束"
-            @click="action('end', { id: matter.id })"
+            :aria-expanded="ui.backgroundOpen"
+            aria-label="展开或收起后台事项"
+            @click="ui.backgroundOpen = !ui.backgroundOpen"
           >
-            <Icon name="stop" />
+            <Icon name="chevron" />
           </button>
         </div>
-      </div>
-    </section>
+        <div v-if="ui.backgroundOpen" class="paused-activity-list">
+          <div v-for="matter in background" :key="matter.id" class="background-item">
+            <div class="background-content">
+              <div class="background-name">{{ matter.name }}</div>
+              <span class="muted small">{{ human(duration(matter, now)) }}</span>
+            </div>
+            <button
+              class="icon-button"
+              :disabled="!!busy"
+              :aria-label="`继续 ${matter.name}`"
+              title="继续"
+              @click="action('resume', { id: matter.id })"
+            >
+              <Icon name="play" /></button
+            ><button
+              class="icon-button"
+              :disabled="!!busy"
+              :aria-label="`结束 ${matter.name}`"
+              title="结束"
+              @click="action('end', { id: matter.id })"
+            >
+              <Icon name="stop" />
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
     <form class="start-activity-form" novalidate @submit.prevent="start">
       <div class="start-activity-heading">
         <label for="activityName">开始新活动</label

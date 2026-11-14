@@ -200,5 +200,7 @@ export type Group = 'tracking' | 'todos' | 'growth' | 'resources' | 'recurrence'
 export interface Reply {
   ok: boolean;
   state: Snapshot;
+  growth?: GrowthView;
+  now?: number;
   error?: { code: string; message: string };
 }

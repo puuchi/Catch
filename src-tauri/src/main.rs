@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod accessibility;
 mod clock;
 mod native;
 use catch_app::{
@@ -32,13 +33,17 @@ struct Desktop {
     day: String,
     _lock: ProfileLock,
     isolated: bool,
+    layout: Value,
 }
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 struct Preferences {
     transparency: u8,
     pinned: bool,
     width: f64,
     height: f64,
+    main_position: Option<tauri::PhysicalPosition<i32>>,
+    bubble_position: Option<tauri::PhysicalPosition<i32>>,
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -47,7 +52,33 @@ impl Default for Preferences {
             pinned: true,
             width: 320.,
             height: 510.,
+            main_position: None,
+            bubble_position: None,
         }
+    }
+}
+impl Preferences {
+    fn validated(mut self) -> Self {
+        self.width = if self.width.is_finite() {
+            self.width.clamp(260., 1200.)
+        } else {
+            320.
+        };
+        self.height = if self.height.is_finite() {
+            self.height.clamp(300., 1600.)
+        } else {
+            510.
+        };
+        self.transparency = self.transparency.min(100);
+        // Positions are physical pixels. Invalid/offscreen monitor positions
+        // are fitted to the current work area before showing either surface.
+        self.main_position = self
+            .main_position
+            .filter(|p| p.x.abs_diff(0) < 100_000 && p.y.abs_diff(0) < 100_000);
+        self.bubble_position = self
+            .bubble_position
+            .filter(|p| p.x.abs_diff(0) < 100_000 && p.y.abs_diff(0) < 100_000);
+        self
     }
 }
 fn ensure(window: &WebviewWindow, desktop: &Desktop, generation: u64) -> Result<(), String> {
@@ -115,12 +146,13 @@ fn execute(
         },
     );
     let snapshot = desktop.service.snapshot();
+    let growth = growth_view(&desktop, now)?;
     let _ = app.emit_to("main", "catch:state", &snapshot);
     drop(desktop);
     native::redraw(&app);
     Ok(match result {
-        Ok(_) => json!({"ok":true,"state":snapshot}),
-        Err(error) => json!({"ok":false,"state":snapshot,"error":error}),
+        Ok(_) => json!({"ok":true,"state":snapshot,"growth":growth,"now":now}),
+        Err(error) => json!({"ok":false,"state":snapshot,"error":error,"growth":growth,"now":now}),
     })
 }
 #[tauri::command]
@@ -168,6 +200,11 @@ fn collapse(
     ensure(&window, &desktop, generation)?;
     desktop.preferences.width = f64::from(size.width) / scale;
     desktop.preferences.height = f64::from(size.height) / scale;
+    desktop.preferences.main_position = Some(position);
+    desktop.preferences.bubble_position = Some(tauri::PhysicalPosition::new(
+        position.x + (size.width as i32 - (36. * scale) as i32) / 2,
+        position.y,
+    ));
     desktop.disk.write_atomic(
         "catch-preferences.json",
         &serde_json::to_vec(&desktop.preferences).map_err(|error| error.to_string())?,
@@ -198,8 +235,46 @@ fn collapse(
             desktop.hwnd = 0;
         }
         diagnostics(&handle);
+        let settled = handle.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(800));
+            diagnostics(&settled);
+        });
     })
     .map_err(|error| error.to_string())
+}
+#[tauri::command]
+fn report_layout(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<Runtime>,
+    generation: u64,
+    layout: Value,
+) -> Result<(), String> {
+    let mut desktop = state.lock().map_err(|_| "状态锁失败")?;
+    ensure(&window, &desktop, generation)?;
+    if serde_json::to_vec(&layout)
+        .map_err(|error| error.to_string())?
+        .len()
+        > 16000
+    {
+        return Err("布局诊断过大".into());
+    }
+    desktop.layout = layout;
+    drop(desktop);
+    diagnostics(&app);
+    Ok(())
+}
+pub(crate) fn remember_native_position(app: &AppHandle, position: tauri::PhysicalPosition<i32>) {
+    if let Ok(mut desktop) = app.state::<Runtime>().lock() {
+        desktop.preferences.bubble_position = Some(position);
+        if let Ok(bytes) = serde_json::to_vec(&desktop.preferences) {
+            if let Err(error) = desktop.disk.write_atomic("catch-preferences.json", &bytes) {
+                drop(desktop);
+                report(app, format!("窗口位置尚未保存：{error}"));
+            }
+        }
+    }
 }
 #[tauri::command]
 fn save_preferences(
@@ -411,6 +486,10 @@ pub(crate) fn request_exit(app: &AppHandle, confirm: bool) -> Result<(), String>
         .service
         .checkpoint(clock::now())
         .map_err(|error| error.message)?;
+    desktop.disk.write_atomic(
+        "catch-preferences.json",
+        &serde_json::to_vec(&desktop.preferences).map_err(|error| error.to_string())?,
+    )?;
     drop(desktop);
     EXITING.store(true, Ordering::SeqCst);
     native::destroy(app);
@@ -463,18 +542,32 @@ pub(crate) fn expand(app: &AppHandle) {
         builder = builder.center();
         match builder.build() {
             Ok(main) => {
-                if let Some(position) = native::position(&handle) {
+                if let Some(position) = native::position(&handle).or(preferences.bubble_position) {
                     let scale = main.scale_factor().unwrap_or(1.);
-                    let _ = main.set_position(tauri::PhysicalPosition::new(
-                        position.x - ((preferences.width - 36.) * scale / 2.) as i32,
-                        position.y,
-                    ));
+                    let _ = native::fit_main(
+                        &main,
+                        Some(tauri::PhysicalPosition::new(
+                            position.x - ((preferences.width - 36.) * scale / 2.) as i32,
+                            position.y,
+                        )),
+                    );
+                } else {
+                    let _ = native::fit_main(&main, preferences.main_position);
                 }
                 if let Ok(mut desktop) = handle.state::<Runtime>().lock() {
                     desktop.hwnd = main.hwnd().map(|hwnd| hwnd.0 as isize).unwrap_or(0);
                 }
                 let closing = handle.clone();
                 main.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Moved(position) = event {
+                        if let Ok(mut desktop) = closing.state::<Runtime>().lock() {
+                            if desktop.view.generation() == generation
+                                && desktop.view.phase() == Phase::Expanded
+                            {
+                                desktop.preferences.main_position = Some(*position);
+                            }
+                        }
+                    }
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         if !EXITING.load(Ordering::SeqCst) {
                             api.prevent_close();
@@ -510,7 +603,7 @@ pub(crate) fn expand(app: &AppHandle) {
 fn diagnostics(app: &AppHandle) {
     if let Ok(desktop) = app.state::<Runtime>().lock() {
         let windows:Vec<Value>=app.webview_windows().iter().map(|(label,window)|json!({"label":label,"visible":window.is_visible().ok(),"innerSize":window.inner_size().ok(),"scaleFactor":window.scale_factor().ok()})).collect();
-        let data = json!({"pid":std::process::id(),"generation":desktop.view.generation(),"phase":desktop.view.phase(),"webviews":windows,"native":native::position(app),"time":clock::now()});
+        let data = json!({"pid":std::process::id(),"generation":desktop.view.generation(),"phase":desktop.view.phase(),"webviews":windows,"native":native::position(app),"layout":desktop.layout,"time":clock::now()});
         let _ = desktop.disk.write_atomic(
             "window-diagnostics.json",
             &serde_json::to_vec_pretty(&data).unwrap_or_default(),
@@ -519,14 +612,15 @@ fn diagnostics(app: &AppHandle) {
 }
 fn main() {
     let app=tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app,_,_|expand(app)))
-        .invoke_handler(tauri::generate_handler![boot,execute,stash_ui,view_painted,collapse,save_preferences,pick_resources,classify_resource,open_resource,quit])
+        .invoke_handler(tauri::generate_handler![boot,execute,stash_ui,view_painted,collapse,save_preferences,report_layout,pick_resources,classify_resource,open_resource,quit])
         .setup(|app|{
             let directory=std::env::var_os("CATCH_DATA_DIR").map(PathBuf::from).unwrap_or(app.path().app_data_dir()?);std::fs::create_dir_all(&directory)?;let directory=std::fs::canonicalize(directory)?;
             if directory.file_name().is_some_and(|name|name.to_string_lossy().eq_ignore_ascii_case("float-todo")){return Err("首次迁移请使用独立目录，暂不允许直接写入原版记录".into());}
             let lock=ProfileLock::acquire(&directory).map_err(std::io::Error::other)?;let disk:Arc<dyn Disk>=Arc::new(FileDisk::new(&directory).map_err(std::io::Error::other)?);
             let now=clock::now();let day=clock::day(now);let id=uuid::Uuid::new_v4().to_string();let service=Service::open(disk.clone(),Context{now,local_day:&day,new_id:&id}).map_err(|error|std::io::Error::other(error.message))?;
-            let view=Session::open(disk.clone()).map_err(std::io::Error::other)?;let preferences=match disk.read("catch-preferences.json").map_err(std::io::Error::other)?{Some(bytes)=>serde_json::from_slice(&bytes)?,None=>Preferences::default()};
-            app.manage(Mutex::new(Desktop{service,view,disk,preferences,hwnd:0,day,_lock:lock,isolated:true}));
+            let view=Session::open(disk.clone()).map_err(std::io::Error::other)?;let preferences:Preferences=match disk.read("catch-preferences.json").map_err(std::io::Error::other)?{Some(bytes)=>serde_json::from_slice(&bytes)?,None=>Preferences::default()};
+            let preferences=preferences.validated();let isolated=std::env::var_os("CATCH_DATA_DIR").is_some();
+            app.manage(Mutex::new(Desktop{service,view,disk,preferences,hwnd:0,day,_lock:lock,isolated,layout:Value::Null}));
             native::install(app.handle()).map_err(std::io::Error::other)?;expand(app.handle());
             let handle=app.handle().clone();std::thread::spawn(move||{let mut ticks=0;while !EXITING.load(Ordering::SeqCst){std::thread::sleep(Duration::from_secs(1));if EXITING.load(Ordering::SeqCst){break;}ticks+=1;let now=clock::now();let day=clock::day(now);
                 let result=(||->Result<Value,String>{let state=handle.state::<Runtime>();let mut desktop=state.lock().map_err(|_|"状态锁失败")?;

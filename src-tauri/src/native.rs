@@ -146,6 +146,7 @@ mod windows {
         ) -> i32;
         fn DestroyMenu(menu: isize) -> i32;
         fn SetForegroundWindow(hwnd: isize) -> i32;
+        fn SetWindowTextW(hwnd: isize, text: *const u16) -> i32;
         fn MessageBoxW(hwnd: isize, text: *const u16, title: *const u16, flags: u32) -> i32;
     }
     #[link(name = "gdi32")]
@@ -231,6 +232,7 @@ mod windows {
         crops: Image,
         sprout: Image,
         drag: Cell<Option<Drag>>,
+        provider: Option<::windows::Win32::UI::Accessibility::IRawElementProviderSimple>,
     }
     fn side(hwnd: isize) -> i32 {
         36 * unsafe { GetDpiForWindow(hwnd) }.max(96) as i32 / 96
@@ -258,6 +260,24 @@ mod windows {
     }
     fn paint(hwnd: isize, context: &Context) -> Result<(), String> {
         let (plant, stage, status) = crate::presentation(&context.app);
+        let plant_name = match plant {
+            Plant::Tulip => "郁金香",
+            Plant::Sunflower => "向日葵",
+            Plant::Corn => "玉米",
+            Plant::Strawberry => "草莓",
+            Plant::Sprout => "绿芽",
+        };
+        let status_name = match status {
+            Some(Status::Running) => "正在投入",
+            Some(Status::Paused) => "准备继续",
+            _ => "今日成长",
+        };
+        unsafe {
+            SetWindowTextW(
+                hwnd,
+                wide(&format!("Catch · {plant_name} · {status_name}")).as_ptr(),
+            );
+        }
         let stage = usize::from(stage.min(4));
         let (image, cell, column, row) = if plant == Plant::Sprout {
             (
@@ -416,6 +436,9 @@ mod windows {
         }
         let context = unsafe { &*pointer };
         if message == 0x0082 {
+            if let Some(provider) = &context.provider {
+                crate::accessibility::disconnect(provider);
+            }
             unsafe {
                 WTSUnRegisterSessionNotification(hwnd);
                 SetWindowLongPtrW(hwnd, -21, 0);
@@ -430,6 +453,16 @@ mod windows {
             _ => {}
         }
         match message {
+            0x003d if lp as i32 == crate::accessibility::ROOT_OBJECT as i32 => {
+                if let Some(provider) = &context.provider {
+                    return crate::accessibility::result(hwnd, wp, lp, provider);
+                }
+            }
+            // Keep the standard window/caption accessibility semantics while
+            // giving the layered surface the full client area, without chrome.
+            0x0083 | 0x0085 => return 0,
+            0x0086 => return 1,
+            0x0084 => return 1,
             0x0011 => return 1,
             0x0010 => return 0,
             REDRAW | 0x000f => {
@@ -522,6 +555,15 @@ mod windows {
                 }
                 if drag.is_some_and(|drag| !drag.moved) {
                     crate::expand(&context.app);
+                } else if drag.is_some() {
+                    let mut rect = Rect::default();
+                    unsafe {
+                        GetWindowRect(hwnd, &mut rect);
+                    }
+                    crate::remember_native_position(
+                        &context.app,
+                        tauri::PhysicalPosition::new(rect.left, rect.top),
+                    );
                 }
                 return 0;
             }
@@ -603,6 +645,7 @@ mod windows {
                 "../../frontend/public/assets/sprout/growing-plant-sprite.png"
             ))?,
             drag: Cell::new(None),
+            provider: None,
         });
         let pointer = Box::into_raw(context);
         let hwnd = unsafe {
@@ -610,7 +653,7 @@ mod windows {
                 0x00080000 | 0x00000080 | 0x00000008,
                 class.as_ptr(),
                 wide("Catch · 今日植物").as_ptr(),
-                0x80000000,
+                0x80000000 | 0x00c00000 | 0x00080000,
                 120,
                 120,
                 36,
@@ -626,6 +669,9 @@ mod windows {
                 "创建悬浮表面失败：{}",
                 std::io::Error::last_os_error()
             ));
+        }
+        unsafe {
+            (*pointer).provider = Some(crate::accessibility::create(hwnd, app.clone()));
         }
         if unsafe { WTSRegisterSessionNotification(hwnd, 0) } == 0 {
             unsafe {
@@ -676,6 +722,36 @@ mod windows {
             return None;
         }
         Some(tauri::PhysicalPosition::new(rect.left, rect.top))
+    }
+    pub fn fit_main(
+        window: &tauri::WebviewWindow,
+        requested: Option<tauri::PhysicalPosition<i32>>,
+    ) -> Result<(), String> {
+        let current = window.outer_position().map_err(|error| error.to_string())?;
+        let position = requested.unwrap_or(current);
+        let work = work_area(Point {
+            x: position.x,
+            y: position.y,
+        });
+        let size = window.outer_size().map_err(|error| error.to_string())?;
+        let width = (size.width as i32).min((work.right - work.left).max(1));
+        let height = (size.height as i32).min((work.bottom - work.top).max(1));
+        if size.width as i32 != width || size.height as i32 != height {
+            window
+                .set_size(tauri::PhysicalSize::new(width as u32, height as u32))
+                .map_err(|error| error.to_string())?;
+        }
+        let point = clamp(
+            Point {
+                x: position.x,
+                y: position.y,
+            },
+            width,
+            height,
+        );
+        window
+            .set_position(tauri::PhysicalPosition::new(point.x, point.y))
+            .map_err(|error| error.to_string())
     }
     pub fn destroy(hwnd: isize) {
         unsafe {
@@ -764,6 +840,20 @@ pub fn position(app: &AppHandle) -> Option<tauri::PhysicalPosition<i32>> {
     {
         let _ = app;
         None
+    }
+}
+pub fn fit_main(
+    window: &tauri::WebviewWindow,
+    requested: Option<tauri::PhysicalPosition<i32>>,
+) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        windows::fit_main(window, requested)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, requested);
+        Ok(())
     }
 }
 pub fn destroy(app: &AppHandle) {

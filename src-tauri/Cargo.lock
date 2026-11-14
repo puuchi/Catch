@@ -517,6 +517,8 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-single-instance",
  "uuid",
+ "windows",
+ "windows-core",
 ]
 
 [[package]]

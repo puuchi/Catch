@@ -210,7 +210,11 @@ function toggle(id: string) {
           </div>
           <template v-if="ui.expandedTodos.includes(todo.id)"
             ><p v-if="todo.notes" class="todo-notes">{{ todo.notes }}</p>
-            <Resources :owner="{ kind: 'todo', id: todo.id }" :resources="todo.resources" /><button
+            <Resources
+              :owner="{ kind: 'todo', id: todo.id }"
+              :resources="todo.resources"
+              :readonly="ui.history"
+            /><button
               v-if="!ui.history && !todo.recurrence"
               class="quiet-button small"
               @click="repeat(todo)"

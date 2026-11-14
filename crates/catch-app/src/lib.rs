@@ -361,8 +361,20 @@ impl Service {
         owner: &resources::Owner,
         id: &str,
     ) -> Result<resources::Resource> {
-        let resource = self
-            .resources(owner)?
+        let records = match owner {
+            resources::Owner::Todo { id } => {
+                let snapshot = self.todos.snapshot();
+                snapshot
+                    .todos
+                    .iter()
+                    .chain(snapshot.archive.iter())
+                    .find(|row| row.id == *id && row.deleted_at.is_none())
+                    .map(|row| row.resources.as_slice())
+                    .ok_or_else(|| Error::validation("待办已不存在或已删除"))?
+            }
+            _ => self.resources(owner)?,
+        };
+        let resource = records
             .iter()
             .find(|resource| resource.id == id)
             .ok_or_else(|| Error::validation("资料关联已不存在"))?;

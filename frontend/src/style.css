@@ -1176,3 +1176,58 @@ button:disabled {
     transition: none !important;
   }
 }
+.activity-page {
+  overflow: hidden;
+}
+.current-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.current-content > .background-activities {
+  flex: 0 0 auto;
+  max-height: none;
+}
+.current-content .paused-activity-list {
+  overflow: visible;
+}
+.start-activity-form {
+  margin-top: 0;
+}
+@media (max-height: 450px) {
+  .activity-page {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .current-card {
+    padding: 8px 10px;
+  }
+  #currentName {
+    font-size: 16px;
+    line-height: 1.45;
+    margin: 5px 0;
+  }
+  .current-timer {
+    font-size: 28px;
+    line-height: 1.2;
+  }
+  .progress-form {
+    margin-top: 5px;
+  }
+  .progress-form input {
+    padding: 3px 1px;
+  }
+  .current-card .resources {
+    margin-top: 3px;
+  }
+  .current-card .resource-heading {
+    min-height: 16px;
+  }
+  .start-activity-heading {
+    margin: 0 0 5px;
+  }
+}

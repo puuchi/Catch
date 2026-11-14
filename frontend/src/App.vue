@@ -43,6 +43,43 @@ const tabs: { id: Page; name: string; icon: string }[] = [
 const current = computed(() =>
   state.value?.tracking.activities.find((m) => m.status === 'running'),
 );
+async function reportLayout() {
+  if (!ready.value) return;
+  await nextTick();
+  const rect = (selector: string) => {
+    const element = document.querySelector(selector);
+    if (!element) return null;
+    const r = element.getBoundingClientRect();
+    return {
+      x: r.x,
+      y: r.y,
+      width: r.width,
+      height: r.height,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    };
+  };
+  await host
+    .layout(generation.value, {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      dpr: window.devicePixelRatio,
+      page: ui.page,
+      bodyFont: getComputedStyle(document.body).fontSize,
+      app: rect('#app'),
+      content: rect('.app-content'),
+      pageBounds: rect('.module-page'),
+      currentCard: rect('.current-card'),
+      startForm: rect('.start-activity-form'),
+      footer: rect('.app-tools'),
+    })
+    .catch(() => {});
+}
+watch(
+  () => [ui.page, ui.selectedMatterId, ui.settingsOpen],
+  () => void reportLayout(),
+);
+window.addEventListener('resize', () => void reportLayout());
 watch(
   preferences,
   (value) => {
@@ -97,6 +134,7 @@ onMounted(async () => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     );
     await host.painted(generation.value);
+    await reportLayout();
     await host.on('catch:request-quit', () => void quit());
     await host.on('catch:request-collapse', () => void collapse());
     await getCurrentWebview().onDragDropEvent(async (event) => {

@@ -118,6 +118,8 @@ export async function dispatch(group: Group, type: string, payload: Record<strin
       state.value.todos.revision,
     );
     accept(reply.state);
+    if (reply.growth) growth.value = reply.growth;
+    if (reply.now !== undefined) now.value = reply.now;
     if (!reply.ok) throw Error(reply.error?.message || '操作未完成，请核对记录');
     return reply.state;
   } finally {
