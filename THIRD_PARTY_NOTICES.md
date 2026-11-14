@@ -17,6 +17,7 @@ Catch includes interface and interaction contributions by jianxunbi (suppermaker
 | Growing Plant sprite adaptation | Dean Cole, [Growing Plant](https://lottiefiles.com/free-animation/growing-plant-p4PvMFxRbS) | Lottie Simple License (FL 9.13.21), `assets/sprout/LICENSE.txt`; source/hash details in `assets/sprout/SOURCE.json` |
 | Farming crops 16×16 (tulip, sunflower, corn and strawberry) | josehzz, [Farming crops 16x16](https://opengameart.org/content/farming-crops-16x16) | CC0 1.0; `frontend/public/assets/plants/README.txt` and `SOURCE.json` |
 | Vue and Tauri API (next interface) | Vue and Tauri contributors | MIT / Apache-2.0; license texts accompany the next build |
+| Rust dependencies (next desktop build) | Respective contributors | Individual terms in bundled `licenses/RUST.txt`, with links to unmodified source; supplemental license sources are recorded in `assets/licenses/rust/SOURCES.json` |
 | Electron runtime | Electron contributors | MIT; `LICENSE.electron.txt` in packaged builds |
 | Chromium and runtime components | Respective contributors | Packaged `LICENSES.chromium.html` |
 

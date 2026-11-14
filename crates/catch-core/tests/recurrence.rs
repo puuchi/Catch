@@ -215,3 +215,39 @@ fn stop_and_this_and_future_edits_keep_completed_history_independent() {
         done.todos
     );
 }
+
+#[test]
+fn converting_a_todo_preserves_its_identity_and_does_not_emit_a_duplicate() {
+    let todos = todos::Document::default()
+        .apply(
+            &todos::Command::Create(fields("原来的待办")),
+            0,
+            todos::Context {
+                now: 0,
+                local_day: "2026-11-14",
+                new_id: "existing",
+            },
+        )
+        .unwrap();
+    let candidate = Document::default()
+        .command(
+            &Command::Convert {
+                id: "existing".into(),
+                schedule: Schedule::Daily,
+                starts_on: "2026-11-14".into(),
+            },
+            &todos,
+            0,
+            "2026-11-14",
+            "rule-1",
+        )
+        .unwrap();
+    assert_eq!(candidate.todos.todos.len(), 1);
+    assert_eq!(candidate.todos.todos[0].id, "existing");
+    assert_eq!(candidate.todos.todos[0].notes, "备注");
+    let done = complete(candidate, "2026-11-14");
+    let tomorrow = done.rules.reconcile(&done.todos, "2026-11-15").unwrap();
+    assert_eq!(tomorrow.todos.todos.len(), 2);
+    assert_eq!(tomorrow.todos.todos[1].id, "existing");
+    assert_eq!(tomorrow.todos.todos[0].text, "原来的待办");
+}

@@ -17,6 +17,7 @@ Thumbs.db
 target/
 frontend/dist/
 frontend/public/licenses/
+src-tauri/gen/
 
 # Private audit snapshots and local machine paths are not part of the public project.
 docs/CATCH_PROVENANCE_EVIDENCE.json

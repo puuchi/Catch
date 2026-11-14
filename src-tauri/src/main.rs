@@ -538,11 +538,10 @@ fn main() {
                 if ticks%30==0{emit_state(&handle);}native::redraw(&handle);
             }});Ok(())
         }).build(tauri::generate_context!()).expect("Catch startup failed");
-    app.run(|app, event| {
+    app.run(|_app, event| {
         if let tauri::RunEvent::ExitRequested { api, .. } = event {
             if !EXITING.load(Ordering::SeqCst) {
                 api.prevent_exit();
-                let _ = request_exit(app, true);
             }
         }
     });

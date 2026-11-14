@@ -206,7 +206,9 @@ mod windows {
             let pixels = match info.color_type {
                 png::ColorType::Rgba => buffer,
                 png::ColorType::Rgb => buffer
-                    .chunks_exact(3)
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
                     .flat_map(|p| [p[0], p[1], p[2], 255])
                     .collect(),
                 _ => return Err("植物素材颜色格式无效".into()),
@@ -282,7 +284,7 @@ mod windows {
         };
         let size = side(hwnd).max(1) as usize;
         let mut pixels = vec![0_u8; size * size * 4];
-        for pixel in pixels.chunks_exact_mut(4) {
+        for pixel in pixels.as_chunks_mut::<4>().0 {
             pixel[3] = 1;
         }
         for y in 0..size {

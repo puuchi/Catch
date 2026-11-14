@@ -1,12 +1,115 @@
 <script setup lang="ts">
-import {computed,ref} from 'vue';import PlantSprite from './PlantSprite.vue';import {busy,dispatch,growth,inform,preferences,savePreferences,state,ui} from '../store';import {human} from '../display';import type {Plant} from '../models';
-const plants:{id:Plant;name:string}[]=[{id:'tulip',name:'郁金香'},{id:'sunflower',name:'向日葵'},{id:'corn',name:'玉米'},{id:'strawberry',name:'草莓'},{id:'sprout',name:'绿芽'}];
-const preview=computed(()=>ui.growthPreview||growth.value?.plant||'sprout');const error=ref('');
-const goal=computed({get:()=>ui.goalDraft??String(state.value?.growth.goalMinutes||60),set:value=>{ui.goalDraft=value}});
-async function choose(){try{await dispatch('growth','choose',{plant:preview.value});ui.growthPreview=null}catch(cause){error.value=(cause as Error).message}}
-async function setGoal(enabled=true){try{const minutes=Number(goal.value);if(enabled&&(!Number.isInteger(minutes)||minutes<1||minutes>1440))throw Error('目标须为 1–1440 分钟');await dispatch('growth','set-goal',{minutes:enabled?minutes:null});ui.goalDraft=null;error.value=''}catch(cause){error.value=(cause as Error).message}}
+import { computed, ref } from 'vue';
+import PlantSprite from './PlantSprite.vue';
+import { busy, dispatch, growth, inform, preferences, savePreferences, state, ui } from '../store';
+import { human } from '../display';
+import type { Plant } from '../models';
+const plants: { id: Plant; name: string }[] = [
+  { id: 'tulip', name: '郁金香' },
+  { id: 'sunflower', name: '向日葵' },
+  { id: 'corn', name: '玉米' },
+  { id: 'strawberry', name: '草莓' },
+  { id: 'sprout', name: '绿芽' },
+];
+const preview = computed(() => ui.growthPreview || growth.value?.plant || 'sprout');
+const error = ref('');
+const goal = computed({
+  get: () => ui.goalDraft ?? String(state.value?.growth.goalMinutes || 60),
+  set: (value) => {
+    ui.goalDraft = value;
+  },
+});
+async function choose() {
+  try {
+    await dispatch('growth', 'choose', { plant: preview.value });
+    ui.growthPreview = null;
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  }
+}
+async function setGoal(enabled = true) {
+  try {
+    const minutes = Number(goal.value);
+    if (enabled && (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440))
+      throw Error('目标须为 1–1440 分钟');
+    await dispatch('growth', 'set-goal', { minutes: enabled ? minutes : null });
+    ui.goalDraft = null;
+    error.value = '';
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  }
+}
 </script>
-<template><section class="settings-panel" aria-label="外观与成长"><div class="settings-section"><label class="settings-row" for="backgroundTransparency">背景透明度 <output>{{preferences.transparency}}%</output></label><input id="backgroundTransparency" v-model.number="preferences.transparency" type="range" min="0" max="100" aria-label="背景透明度" @change="savePreferences"/></div>
-<div class="settings-section"><div class="settings-row"><strong>今日成长</strong><span class="muted small">{{human(growth?.investedMs||0)}}</span></div><div class="plant-choices"><button v-for="plant in plants" :key="plant.id" :class="{selected:preview===plant.id}" :aria-pressed="preview===plant.id" @click="ui.growthPreview=plant.id"><PlantSprite :plant="plant.id" :stage="4" :size="32"/><span>{{plant.name}}</span></button></div><div class="plant-preview"><PlantSprite :plant="preview" :stage="growth?.stage||0" :size="56"/><div><span class="muted small">{{growth?.selected&&preview===growth.plant?'今天的植物':'预览'}}</span><strong>{{plants.find(p=>p.id===preview)?.name}}</strong></div><button class="primary" :disabled="!!busy||growth?.selected" @click="choose">{{growth?.selected?'今天已选定':'今天选它'}}</button></div><p v-if="growth?.selected" class="muted small">明天可以换一种。</p></div>
-<div class="settings-section"><div class="settings-row"><label for="growthGoal">每日目标</label><label class="toggle-control"><input type="checkbox" :checked="state?.growth.goalMinutes!==null" @change="setGoal(state?.growth.goalMinutes===null)"/></label></div><form v-if="state?.growth.goalMinutes!==null" class="goal-input" @submit.prevent="setGoal()"><input id="growthGoal" v-model="goal" type="number" min="1" max="1440" aria-label="每日目标分钟数"/><span>分钟</span><button type="submit" class="quiet-button" :disabled="!!busy">保存</button></form></div><p v-if="error" role="alert" class="editor-error">{{error}}</p>
-</section></template>
+<template>
+  <section class="settings-panel" aria-label="外观与成长">
+    <div class="settings-section">
+      <label class="settings-row" for="backgroundTransparency"
+        >背景透明度 <output>{{ preferences.transparency }}%</output></label
+      ><input
+        id="backgroundTransparency"
+        v-model.number="preferences.transparency"
+        type="range"
+        min="0"
+        max="100"
+        aria-label="背景透明度"
+        @change="savePreferences"
+      />
+    </div>
+    <div class="settings-section">
+      <div class="settings-row">
+        <strong>今日成长</strong
+        ><span class="muted small">{{ human(growth?.investedMs || 0) }}</span>
+      </div>
+      <div class="plant-choices">
+        <button
+          v-for="plant in plants"
+          :key="plant.id"
+          :class="{ selected: preview === plant.id }"
+          :aria-pressed="preview === plant.id"
+          @click="ui.growthPreview = plant.id"
+        >
+          <PlantSprite :plant="plant.id" :stage="4" :size="32" /><span>{{ plant.name }}</span>
+        </button>
+      </div>
+      <div class="plant-preview">
+        <PlantSprite :plant="preview" :stage="growth?.stage || 0" :size="56" />
+        <div>
+          <span class="muted small">{{
+            growth?.selected && preview === growth.plant ? '今天的植物' : '预览'
+          }}</span><strong>{{ plants.find((p) => p.id === preview)?.name }}</strong>
+        </div>
+        <button class="primary" :disabled="!!busy || growth?.selected" @click="choose">
+          {{ growth?.selected ? '今天已选定' : '今天选它' }}
+        </button>
+      </div>
+      <p v-if="growth?.selected" class="muted small">明天可以换一种。</p>
+    </div>
+    <div class="settings-section">
+      <div class="settings-row">
+        <label for="growthGoal">每日目标</label
+        ><label class="toggle-control"
+          ><input
+            type="checkbox"
+            :checked="state?.growth.goalMinutes !== null"
+            @change="setGoal(state?.growth.goalMinutes === null)"
+        /></label>
+      </div>
+      <form
+        v-if="state?.growth.goalMinutes !== null"
+        class="goal-input"
+        @submit.prevent="setGoal()"
+      >
+        <input
+          id="growthGoal"
+          v-model="goal"
+          type="number"
+          min="1"
+          max="1440"
+          aria-label="每日目标分钟数"
+        /><span>分钟</span
+        ><button type="submit" class="quiet-button" :disabled="!!busy">保存</button>
+      </form>
+    </div>
+    <p v-if="error" role="alert" class="editor-error">{{ error }}</p>
+  </section>
+</template>
