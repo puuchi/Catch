@@ -4,6 +4,7 @@ use catch_core::{growth, recurrence, resources, todos, tracking};
 use catch_storage::{Disk, GrowthStore, TodosStore, TrackingStore};
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, sync::Arc};
+pub mod view_session;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "group", content = "command", rename_all = "kebab-case")]

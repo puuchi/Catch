@@ -1,0 +1,1 @@
+{"main":{"identifier":"main","description":"Local Catch interface; filesystem and OS operations pass through guarded Rust commands","local":true,"windows":["main"],"permissions":["core:default","core:event:default","core:window:allow-minimize","core:window:allow-start-dragging"]}}

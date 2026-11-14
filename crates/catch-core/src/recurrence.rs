@@ -179,6 +179,11 @@ impl Default for Document {
     rename_all_fields = "camelCase"
 )]
 pub enum Command {
+    Convert {
+        id: String,
+        schedule: Schedule,
+        starts_on: String,
+    },
     Create {
         fields: Fields,
         #[serde(default)]
@@ -281,6 +286,45 @@ impl Document {
         let mut rules = self.clone();
         let mut todos = todos.clone();
         match command {
+            Command::Convert {
+                id,
+                schedule,
+                starts_on,
+            } => {
+                let row = todos
+                    .todos
+                    .iter_mut()
+                    .find(|row| row.id == *id && !row.done && row.deleted_at.is_none())
+                    .ok_or("请选择未完成的待办")?;
+                if row.recurrence.is_some() {
+                    return Err("这项待办已设置重复".into());
+                }
+                let anchor = calendar_date(starts_on)?;
+                let scheduled = schedule
+                    .latest(anchor, today)?
+                    .unwrap_or(schedule.on_or_after(anchor, anchor)?);
+                let next = schedule.on_or_after(anchor, after(today.max(scheduled), 1)?)?;
+                row.recurrence = Some(Occurrence {
+                    template_id: new_id.into(),
+                    scheduled_on: day_string(scheduled),
+                });
+                row.deadline = Some(day_string(scheduled));
+                rules.templates.push(Template {
+                    id: new_id.into(),
+                    fields: Fields {
+                        text: row.text.clone(),
+                        notes: row.notes.clone(),
+                        urgent: row.urgent,
+                        deadline: None,
+                    },
+                    resources: row.resources.clone(),
+                    schedule: schedule.clone(),
+                    starts_on: starts_on.clone(),
+                    next_on: day_string(next),
+                    last_emitted: Some(day_string(scheduled)),
+                    stopped: false,
+                });
+            }
             Command::Create {
                 fields,
                 resources,

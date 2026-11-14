@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/catch-core", "crates/catch-storage", "crates/catch-app"]
-exclude = ["artifacts/tauri-prototype/src-tauri"]
+exclude = ["artifacts/tauri-prototype/src-tauri", "src-tauri"]
 resolver = "2"
 
 [workspace.package]

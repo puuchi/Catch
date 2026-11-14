@@ -1,0 +1,8 @@
+{
+  "title":"Farming crops 16x16","creator":"josehzz",
+  "source":"https://opengameart.org/content/farming-crops-16x16",
+  "license":"CC0 1.0",
+  "sheetSha256":"c98fe9cd765698738678f4a64c5ac51c713c63624ca73da05bea7be995946c46",
+  "dimensions":[192,160],"cellSize":16,
+  "stages":{"tulip":{"row":1,"columns":[11,10,9,8,7]},"sunflower":{"row":9,"columns":[11,10,9,8,7]},"corn":{"row":9,"columns":[5,4,3,2,1]},"strawberry":{"row":6,"columns":[5,4,3,2,1]}}
+}
