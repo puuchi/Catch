@@ -8,7 +8,11 @@ pub struct Surface(AtomicIsize);
 mod windows {
     use super::*;
     use catch_core::{growth::Plant, tracking::Status};
-    use std::{cell::Cell, ffi::c_void, io::Cursor};
+    use std::{
+        cell::{Cell, RefCell},
+        ffi::c_void,
+        io::Cursor,
+    };
     type WndProc = unsafe extern "system" fn(isize, u32, usize, isize) -> isize;
     #[repr(C)]
     #[derive(Default, Clone, Copy)]
@@ -233,6 +237,14 @@ mod windows {
         sprout: Image,
         drag: Cell<Option<Drag>>,
         provider: Option<::windows::Win32::UI::Accessibility::IRawElementProviderSimple>,
+        last_paint: RefCell<Option<PaintKey>>,
+    }
+    #[derive(PartialEq, Eq)]
+    struct PaintKey {
+        plant: Plant,
+        stage: u8,
+        status: Option<Status>,
+        size: i32,
     }
     fn side(hwnd: isize) -> i32 {
         36 * unsafe { GetDpiForWindow(hwnd) }.max(96) as i32 / 96
@@ -258,8 +270,17 @@ mod windows {
                 .clamp(work.top, (work.bottom - height).max(work.top)),
         }
     }
-    fn paint(hwnd: isize, context: &Context) -> Result<(), String> {
+    fn paint(hwnd: isize, context: &Context, force: bool) -> Result<(), String> {
         let (plant, stage, status) = crate::presentation(&context.app);
+        let key = PaintKey {
+            plant,
+            stage,
+            status: status.clone(),
+            size: side(hwnd).max(1),
+        };
+        if !force && context.last_paint.borrow().as_ref() == Some(&key) {
+            return Ok(());
+        }
         let plant_name = match plant {
             Plant::Tulip => "郁金香",
             Plant::Sunflower => "向日葵",
@@ -418,6 +439,9 @@ mod windows {
             DeleteDC(memory);
             ReleaseDC(0, screen);
         }
+        if failure.is_none() {
+            context.last_paint.replace(Some(key));
+        }
         failure
             .map(|error| Err(format!("植物绘制失败：{error}")))
             .unwrap_or(Ok(()))
@@ -467,7 +491,7 @@ mod windows {
             0x0010 => return 0,
             REDRAW | 0x000f => {
                 if unsafe { IsWindowVisible(hwnd) } != 0 {
-                    if let Err(error) = paint(hwnd, context) {
+                    if let Err(error) = paint(hwnd, context, message == 0x000f) {
                         crate::report(&context.app, error);
                     }
                 }
@@ -646,6 +670,7 @@ mod windows {
             ))?,
             drag: Cell::new(None),
             provider: None,
+            last_paint: RefCell::new(None),
         });
         let pointer = Box::into_raw(context);
         let hwnd = unsafe {

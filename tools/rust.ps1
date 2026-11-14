@@ -1,4 +1,4 @@
-param([ValidateSet('check','test','fmt','clippy')][string]$Action='test')
+param([ValidateSet('check','test','fmt','clippy','benchmark')][string]$Action='test')
 $ErrorActionPreference='Stop'
 $catchRoot=Split-Path $PSScriptRoot -Parent
 # Prefer an existing user toolchain. A previous local feasibility run installed
@@ -17,6 +17,7 @@ try {
     switch($Action) {
         'fmt' { & cargo fmt --all }
         'clippy' { & cargo clippy --workspace --all-targets -- -D warnings }
+        'benchmark' { & cargo test -p catch-app --locked --release synthetic_history_performance_sample -- --ignored --nocapture }
         default { & cargo $Action --workspace --locked }
     }
     if($LASTEXITCODE -ne 0){throw "Rust $Action failed: $LASTEXITCODE"}

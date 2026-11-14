@@ -147,14 +147,18 @@ fn execute(
             new_id: &id,
         },
     );
-    let snapshot = desktop.service.snapshot();
+    let (snapshot, error) = match result {
+        Ok(snapshot) => (snapshot, None),
+        Err(error) => (desktop.service.snapshot(), Some(error)),
+    };
     let growth = growth_view(&desktop, now)?;
-    let _ = app.emit_to("main", "catch:state", &snapshot);
+    // The caller receives this authoritative snapshot in the command reply.
+    // Only independently initiated changes need a separate state event.
     drop(desktop);
     native::redraw(&app);
-    Ok(match result {
-        Ok(_) => json!({"ok":true,"state":snapshot,"growth":growth,"now":now}),
-        Err(error) => json!({"ok":false,"state":snapshot,"error":error,"growth":growth,"now":now}),
+    Ok(match error {
+        None => json!({"ok":true,"state":snapshot,"growth":growth,"now":now}),
+        Some(error) => json!({"ok":false,"state":snapshot,"error":error,"growth":growth,"now":now}),
     })
 }
 #[tauri::command]
@@ -441,19 +445,7 @@ pub(crate) fn presentation(
     let Ok(desktop) = desktop.lock() else {
         return (Default::default(), 0, None);
     };
-    let snapshot = desktop.service.snapshot();
-    let status = snapshot
-        .tracking
-        .current()
-        .map(|matter| matter.status.clone())
-        .or_else(|| {
-            snapshot
-                .tracking
-                .activities
-                .iter()
-                .find(|matter| matter.status == catch_core::tracking::Status::Paused)
-                .map(|matter| matter.status.clone())
-        });
+    let status = desktop.service.display_status();
     let growth = growth_view(&desktop, clock::now()).ok();
     (
         growth.as_ref().map(|view| view.plant).unwrap_or_default(),
@@ -626,12 +618,17 @@ fn main() {
             native::install(app.handle()).map_err(std::io::Error::other)?;expand(app.handle());
             let handle=app.handle().clone();std::thread::spawn(move||{let mut ticks=0;while !EXITING.load(Ordering::SeqCst){std::thread::sleep(Duration::from_secs(1));if EXITING.load(Ordering::SeqCst){break;}ticks+=1;let now=clock::now();let day=clock::day(now);
                 let result=(||->Result<Value,String>{let state=handle.state::<Runtime>();let mut desktop=state.lock().map_err(|_|"状态锁失败")?;
-                    if desktop.day!=day{desktop.service.refresh_recurrences(&day).map_err(|error|error.message)?;desktop.day=day.clone();}
-                    if ticks%30==0{desktop.service.checkpoint(now).map_err(|error|error.message)?;}
+                    let mut publish=false;
+                    if desktop.day!=day{publish|=desktop.service.refresh_recurrences(&day).map_err(|error|error.message)?;desktop.day=day.clone();}
+                    // Running checkpoints advance the authoritative revision,
+                    // so publish them. Paused/idle profiles need no checkpoint
+                    // or periodic full snapshot.
+                    if ticks%30==0 && desktop.service.display_status()==Some(catch_core::tracking::Status::Running){desktop.service.checkpoint(now).map_err(|error|error.message)?;publish=true;}
                     let(start,end)=clock::bounds(&day)?;let celebrate=desktop.service.observe_growth(DayBounds{day:&day,start,end},now).map_err(|error|error.message)?;
+                    if publish || celebrate{let _=handle.emit_to("main","catch:state",desktop.service.snapshot());}
                     Ok(json!({"now":now,"growth":growth_view(&desktop,now)?,"celebrate":celebrate}))})();
-                match result{Ok(tick)=>{let _=handle.emit_to("main","catch:tick",tick);},Err(error)=>report(&handle,error)}
-                if ticks%30==0{emit_state(&handle);}native::redraw(&handle);
+                match result{Ok(tick)=>{let _=handle.emit_to("main","catch:tick",tick);},Err(error)=>{emit_state(&handle);report(&handle,error);}}
+                native::redraw(&handle);
             }});Ok(())
         }).build(tauri::generate_context!()).expect("Catch startup failed");
     app.run(|_app, event| {

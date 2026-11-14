@@ -3,7 +3,9 @@
 use catch_core::{growth, recurrence, resources, todos, tracking};
 use catch_storage::{Disk, GrowthStore, TodosStore, TrackingStore};
 use serde::{Deserialize, Serialize};
-use std::{collections::VecDeque, sync::Arc};
+use std::{cell::RefCell, sync::Arc};
+mod effort;
+mod replay;
 pub mod view_session;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -28,7 +30,7 @@ pub struct Request {
     pub expected_revision: u64,
     pub operation: UserCommand,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub tracking: tracking::Document,
@@ -78,17 +80,13 @@ pub struct Context<'a> {
     pub local_day: &'a str,
     pub new_id: &'a str,
 }
-struct Cached {
-    request_id: String,
-    fingerprint: Vec<u8>,
-    result: Snapshot,
-}
 pub struct Service {
     tracking: TrackingStore,
     todos: TodosStore,
     growth: GrowthStore,
-    cache: VecDeque<Cached>,
+    cache: replay::ReplayCache,
     import_blocked: bool,
+    effort: RefCell<effort::EffortCache>,
 }
 impl Service {
     fn ensure_import_ready(&self) -> Result<()> {
@@ -145,8 +143,9 @@ impl Service {
             tracking,
             todos,
             growth,
-            cache: VecDeque::new(),
+            cache: replay::ReplayCache::default(),
             import_blocked: false,
+            effort: RefCell::default(),
         })
     }
     pub fn snapshot(&self) -> Snapshot {
@@ -172,15 +171,8 @@ impl Service {
         {
             return Err(Error::validation("请求标识无效或操作内容过大"));
         }
-        if let Some(previous) = self
-            .cache
-            .iter()
-            .find(|item| item.request_id == request.request_id)
-        {
-            if previous.fingerprint != fingerprint {
-                return Err(Error::conflict("重复请求参数不一致"));
-            }
-            return Ok(previous.result.clone());
+        if let Some(replay) = self.cache.lookup(&request.request_id, &fingerprint) {
+            return replay;
         }
         todos::calendar_date(context.local_day).map_err(Error::validation)?;
         match request.operation.clone() {
@@ -361,14 +353,7 @@ impl Service {
             }
         }
         let result = self.snapshot();
-        self.cache.push_back(Cached {
-            request_id: request.request_id,
-            fingerprint,
-            result: result.clone(),
-        });
-        if self.cache.len() > 512 {
-            self.cache.pop_front();
-        }
+        self.cache.record(request.request_id, fingerprint, &result);
         Ok(result)
     }
     pub fn interrupt(&mut self, now: i64, reason: &str) -> Result<Snapshot> {
@@ -443,8 +428,11 @@ impl Service {
     /// true only after the first achievement was durably recorded.
     pub fn observe_growth(&mut self, bounds: growth::DayBounds<'_>, now: i64) -> Result<bool> {
         self.ensure_import_ready()?;
-        let invested =
-            growth::invested(self.tracking.snapshot(), &bounds, now).map_err(Error::validation)?;
+        let invested = self
+            .effort
+            .borrow_mut()
+            .invested(self.tracking.snapshot(), &bounds, now)
+            .map_err(Error::validation)?;
         let before = self
             .growth
             .snapshot()
@@ -469,11 +457,27 @@ impl Service {
                 .is_some_and(|day| day.celebrated_at.is_some()))
     }
     pub fn growth_view(&self, bounds: growth::DayBounds<'_>, now: i64) -> Result<growth::View> {
-        let invested =
-            growth::invested(self.tracking.snapshot(), &bounds, now).map_err(Error::validation)?;
+        let invested = self
+            .effort
+            .borrow_mut()
+            .invested(self.tracking.snapshot(), &bounds, now)
+            .map_err(Error::validation)?;
         self.growth
             .snapshot()
             .view(bounds.day, invested)
             .map_err(Error::validation)
+    }
+    pub fn display_status(&self) -> Option<tracking::Status> {
+        let tracking = self.tracking.snapshot();
+        tracking
+            .current()
+            .map(|matter| matter.status.clone())
+            .or_else(|| {
+                tracking
+                    .activities
+                    .iter()
+                    .find(|matter| matter.status == tracking::Status::Paused)
+                    .map(|matter| matter.status.clone())
+            })
     }
 }
