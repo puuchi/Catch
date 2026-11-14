@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod accessibility;
 mod clock;
+mod legacy_import;
 mod native;
 use catch_app::{
     view_session::{Phase, Session, UiState},
@@ -34,6 +35,7 @@ struct Desktop {
     _lock: ProfileLock,
     isolated: bool,
     layout: Value,
+    pending_import: Option<legacy_import::Pending>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -612,7 +614,7 @@ fn diagnostics(app: &AppHandle) {
 }
 fn main() {
     let app=tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app,_,_|expand(app)))
-        .invoke_handler(tauri::generate_handler![boot,execute,stash_ui,view_painted,collapse,save_preferences,report_layout,pick_resources,classify_resource,open_resource,quit])
+        .invoke_handler(tauri::generate_handler![boot,execute,stash_ui,view_painted,collapse,save_preferences,report_layout,pick_resources,classify_resource,open_resource,quit,legacy_import::preview_legacy,legacy_import::commit_legacy])
         .setup(|app|{
             let directory=std::env::var_os("CATCH_DATA_DIR").map(PathBuf::from).unwrap_or(app.path().app_data_dir()?);std::fs::create_dir_all(&directory)?;let directory=std::fs::canonicalize(directory)?;
             if directory.file_name().is_some_and(|name|name.to_string_lossy().eq_ignore_ascii_case("float-todo")){return Err("首次迁移请使用独立目录，暂不允许直接写入原版记录".into());}
@@ -620,7 +622,7 @@ fn main() {
             let now=clock::now();let day=clock::day(now);let id=uuid::Uuid::new_v4().to_string();let service=Service::open(disk.clone(),Context{now,local_day:&day,new_id:&id}).map_err(|error|std::io::Error::other(error.message))?;
             let view=Session::open(disk.clone()).map_err(std::io::Error::other)?;let preferences:Preferences=match disk.read("catch-preferences.json").map_err(std::io::Error::other)?{Some(bytes)=>serde_json::from_slice(&bytes)?,None=>Preferences::default()};
             let preferences=preferences.validated();let isolated=std::env::var_os("CATCH_DATA_DIR").is_some();
-            app.manage(Mutex::new(Desktop{service,view,disk,preferences,hwnd:0,day,_lock:lock,isolated,layout:Value::Null}));
+            app.manage(Mutex::new(Desktop{service,view,disk,preferences,hwnd:0,day,_lock:lock,isolated,layout:Value::Null,pending_import:None}));
             native::install(app.handle()).map_err(std::io::Error::other)?;expand(app.handle());
             let handle=app.handle().clone();std::thread::spawn(move||{let mut ticks=0;while !EXITING.load(Ordering::SeqCst){std::thread::sleep(Duration::from_secs(1));if EXITING.load(Ordering::SeqCst){break;}ticks+=1;let now=clock::now();let day=clock::day(now);
                 let result=(||->Result<Value,String>{let state=handle.state::<Runtime>();let mut desktop=state.lock().map_err(|_|"状态锁失败")?;

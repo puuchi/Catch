@@ -102,6 +102,10 @@ impl TodosStore {
     pub fn snapshot(&self) -> &Document {
         &self.state
     }
+    /// In-process import must invalidate renderer requests from the old state.
+    pub fn raise_revision(&mut self, floor: u64) {
+        self.state.revision = self.state.revision.max(floor);
+    }
     pub fn is_blocked(&self) -> bool {
         self.blocked
     }

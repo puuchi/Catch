@@ -88,10 +88,50 @@ pub struct Service {
     todos: TodosStore,
     growth: GrowthStore,
     cache: VecDeque<Cached>,
+    import_blocked: bool,
 }
 impl Service {
+    fn ensure_import_ready(&self) -> Result<()> {
+        if self.import_blocked {
+            Err(Error::storage("导入恢复尚未完成，请保留文件并重启"))
+        } else {
+            Ok(())
+        }
+    }
+    pub fn import_legacy(
+        &mut self,
+        disk: Arc<dyn Disk>,
+        source: &catch_storage::legacy::Source,
+        context: Context<'_>,
+    ) -> Result<Snapshot> {
+        self.ensure_import_ready()?;
+        let floor = self
+            .todos
+            .snapshot()
+            .revision
+            .checked_add(1)
+            .ok_or_else(|| Error::validation("待办版本超出范围"))?;
+        let plan = catch_storage::legacy::prepare(
+            disk.as_ref(),
+            source,
+            context.now,
+            context.new_id,
+            self.tracking.snapshot().revision,
+        )
+        .map_err(Error::storage)?;
+        self.import_blocked = true;
+        let saved = catch_storage::legacy::commit(disk.as_ref(), &plan);
+        // A write can succeed and still report failure. Reopen/recover before
+        // accepting any subsequent request, even when commit returned an error.
+        let mut recovered = Self::open(disk, context)?;
+        recovered.todos.raise_revision(floor);
+        *self = recovered;
+        saved.map_err(Error::storage)?;
+        Ok(self.snapshot())
+    }
     pub fn open(disk: Arc<dyn Disk>, context: Context<'_>) -> Result<Self> {
         todos::calendar_date(context.local_day).map_err(Error::validation)?;
+        catch_storage::legacy::recover(disk.as_ref()).map_err(Error::storage)?;
         // Validate/recover todos first: a broken archive must not silently
         // become an empty successful snapshot.
         let growth = GrowthStore::open(disk.clone()).map_err(Error::storage)?;
@@ -106,6 +146,7 @@ impl Service {
             todos,
             growth,
             cache: VecDeque::new(),
+            import_blocked: false,
         })
     }
     pub fn snapshot(&self) -> Snapshot {
@@ -115,12 +156,14 @@ impl Service {
             growth: self.growth.snapshot().clone(),
             recurrences: self.todos.recurrences().clone(),
             tracking_notice: self.tracking.notice.clone(),
-            storage_blocked: self.tracking.is_blocked()
+            storage_blocked: self.import_blocked
+                || self.tracking.is_blocked()
                 || self.todos.is_blocked()
                 || self.growth.is_blocked(),
         }
     }
     pub fn execute(&mut self, request: Request, context: Context<'_>) -> Result<Snapshot> {
+        self.ensure_import_ready()?;
         let fingerprint =
             serde_json::to_vec(&request).map_err(|error| Error::validation(error.to_string()))?;
         if request.request_id.is_empty()
@@ -329,6 +372,7 @@ impl Service {
         Ok(result)
     }
     pub fn interrupt(&mut self, now: i64, reason: &str) -> Result<Snapshot> {
+        self.ensure_import_ready()?;
         self.tracking
             .interrupt(now, reason)
             .map_err(Error::storage)?;
@@ -382,6 +426,7 @@ impl Service {
         Ok(resource.clone())
     }
     pub fn checkpoint(&mut self, now: i64) -> Result<Snapshot> {
+        self.ensure_import_ready()?;
         if let Err(error) = self.tracking.checkpoint(now) {
             let _ = self.tracking.interrupt(now, "save-error");
             return Err(Error::storage(error));
@@ -389,6 +434,7 @@ impl Service {
         Ok(self.snapshot())
     }
     pub fn refresh_recurrences(&mut self, today: &str) -> Result<bool> {
+        self.ensure_import_ready()?;
         self.todos
             .refresh_recurrences(today)
             .map_err(Error::storage)
@@ -396,6 +442,7 @@ impl Service {
     /// Called by the trusted timer/host, not exposed as a user command. Return
     /// true only after the first achievement was durably recorded.
     pub fn observe_growth(&mut self, bounds: growth::DayBounds<'_>, now: i64) -> Result<bool> {
+        self.ensure_import_ready()?;
         let invested =
             growth::invested(self.tracking.snapshot(), &bounds, now).map_err(Error::validation)?;
         let before = self

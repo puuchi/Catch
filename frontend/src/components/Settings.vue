@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import PlantSprite from './PlantSprite.vue';
+import LegacyImport from './LegacyImport.vue';
 import { busy, dispatch, growth, inform, preferences, savePreferences, state, ui } from '../store';
 import { human } from '../display';
 import type { Plant } from '../models';
@@ -111,5 +112,6 @@ async function setGoal(enabled = true) {
       </form>
     </div>
     <p v-if="error" role="alert" class="editor-error">{{ error }}</p>
+    <LegacyImport />
   </section>
 </template>

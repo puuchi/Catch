@@ -49,6 +49,11 @@ fn decode(bytes: &[u8]) -> std::result::Result<Document, ReadError> {
     state.validate().map_err(ReadError::Invalid)?;
     Ok(state)
 }
+pub(crate) fn decode_import(bytes: &[u8]) -> Result<Document> {
+    decode(bytes).map_err(|error| match error {
+        ReadError::Future(message) | ReadError::Invalid(message) => message,
+    })
+}
 impl TrackingStore {
     pub fn open(disk: Arc<dyn Disk>, now: i64, recovery_id: &str) -> Result<Self> {
         if recovery_id.is_empty()

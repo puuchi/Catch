@@ -5,6 +5,107 @@ use std::{
     panic::{catch_unwind, AssertUnwindSafe},
     sync::{Arc, Mutex},
 };
+fn legacy_fixture() -> catch_storage::legacy::Source {
+    let tracking = serde_json::json!({"version":1,"checkpointAt":"2026-11-13T23:31:00.000Z","activities":[{
+        "id":"legacy","name":"阅读","startTime":"2026-11-13T23:30:00.000Z","endTime":null,"status":"running",
+        "segments":[{"start":"2026-11-13T23:30:00.000Z","end":null}],"todoId":"todo-old",
+        "createdAt":"2026-11-13T23:30:00.000Z","updatedAt":"2026-11-13T23:30:00.000Z","pauseReason":null,
+        "customLinks":[{"path":"D:/资料/阅读.pdf"}]}],"custom":{"preserve":true}});
+    let todos = serde_json::json!([{"id":"todo-old","text":"阅读","done":false,"notes":"原备注","custom":42}]);
+    let archive = serde_json::json!([{"id":"done-old","text":"已完成","done":true,"completedAt":"2026-11-13"}]);
+    catch_storage::legacy::Source([
+        Some(serde_json::to_vec_pretty(&tracking).unwrap()),
+        Some(serde_json::to_vec(&todos).unwrap()),
+        Some(serde_json::to_vec(&archive).unwrap()),
+    ])
+}
+#[test]
+fn legacy_import_preserves_originals_sessions_extensions_and_archive() {
+    use catch_storage::legacy;
+    let disk = Arc::new(Memory::default());
+    let source = legacy_fixture();
+    let now = tracking::timestamp("2026-11-14T10:00:00Z").unwrap();
+    let plan = legacy::prepare(disk.as_ref(), &source, now, "import-1", 9).unwrap();
+    assert_eq!(legacy::inspect(&source, now).unwrap().sessions, 1);
+    legacy::commit(disk.as_ref(), &plan).unwrap();
+    let store = TrackingStore::open(disk.clone(), now, "restart").unwrap();
+    assert_eq!(
+        store.snapshot().activities[0].duration(now, None).unwrap(),
+        60_000
+    );
+    assert_eq!(
+        store.snapshot().activities[0].status,
+        tracking::Status::Paused
+    );
+    assert_eq!(store.snapshot().revision, 10);
+    assert_eq!(store.snapshot().extra["custom"]["preserve"], true);
+    let todos = TodosStore::open(disk.clone()).unwrap();
+    assert_eq!(todos.snapshot().todos[0].notes, "原备注");
+    assert_eq!(todos.snapshot().todos[0].extra["custom"], 42);
+    assert_eq!(todos.snapshot().archive[0].id, "done-old");
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&disk.read("catch-import-import-1.json").unwrap().unwrap()).unwrap();
+    for index in 0..3 {
+        assert_eq!(
+            receipt["changes"][index]["original"]
+                .as_str()
+                .unwrap()
+                .as_bytes(),
+            source.0[index].as_ref().unwrap()
+        );
+    }
+    assert!(legacy::prepare(disk.as_ref(), &source, now, "duplicate", 10).is_err());
+}
+#[test]
+fn legacy_import_recovers_every_durable_boundary_and_keeps_source_snapshot() {
+    use catch_storage::legacy;
+    let now = tracking::timestamp("2026-11-14T10:00:00Z").unwrap();
+    for file in [
+        "catch-import-pending.json",
+        "catch-import-test.json",
+        "activity-log.json",
+        "todos.json",
+        "archive.json",
+    ] {
+        for after in [false, true] {
+            let disk = Memory::default();
+            let source = legacy_fixture();
+            let plan = legacy::prepare(&disk, &source, now, "test", 0).unwrap();
+            disk.fail(file, after, true);
+            assert!(catch_unwind(AssertUnwindSafe(|| legacy::commit(&disk, &plan))).is_err());
+            legacy::recover(&disk).unwrap();
+            legacy::recover(&disk).unwrap();
+            let started = file != "catch-import-pending.json" || after;
+            assert_eq!(disk.read("activity-log.json").unwrap().is_some(), started);
+            assert_eq!(disk.read("todos.json").unwrap().is_some(), started);
+            assert_eq!(disk.read("archive.json").unwrap().is_some(), started);
+            assert!(disk.read("catch-import-pending.json").unwrap().is_none());
+        }
+    }
+}
+#[test]
+fn import_refuses_corruption_future_schemas_and_external_changes_without_overwrite() {
+    use catch_storage::legacy;
+    let disk = Memory::default();
+    let now = tracking::timestamp("2026-11-14T10:00:00Z").unwrap();
+    for raw in [br#"{"version":999}"#.as_slice(), b"broken"] {
+        let mut source = legacy_fixture();
+        source.0[0] = Some(raw.to_vec());
+        assert!(legacy::prepare(&disk, &source, now, "bad", 0).is_err());
+        assert!(disk.files.lock().unwrap().is_empty());
+    }
+    let plan = legacy::prepare(&disk, &legacy_fixture(), now, "test", 0).unwrap();
+    disk.put("todos.json", b"[] ");
+    assert!(legacy::commit(&disk, &plan).is_err());
+    assert!(disk.read("activity-log.json").unwrap().is_none());
+    disk.files.lock().unwrap().clear();
+    disk.fail("activity-log.json", false, true);
+    let _ = catch_unwind(AssertUnwindSafe(|| legacy::commit(&disk, &plan)));
+    disk.put("archive.json", b"[] ");
+    assert!(legacy::recover(&disk).is_err());
+    assert!(disk.read("activity-log.json").unwrap().is_none());
+    assert_eq!(disk.read("archive.json").unwrap().unwrap(), b"[] ");
+}
 
 #[derive(Default)]
 struct Memory {

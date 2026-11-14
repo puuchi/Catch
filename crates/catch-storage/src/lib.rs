@@ -3,6 +3,7 @@
 //! of all stores using the same directory.
 mod disk;
 mod growth;
+pub mod legacy;
 mod schedule;
 mod todos;
 mod tracking;

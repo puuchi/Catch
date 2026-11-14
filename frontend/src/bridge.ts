@@ -3,6 +3,18 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { Boot, Group, Owner, Preferences, Reply, ResourceKind, UiState } from './models';
 export const host = {
+  previewLegacy: (generation: number) =>
+    invoke<{
+      directory: string;
+      summary: {
+        matters: number;
+        sessions: number;
+        todos: number;
+        archived: number;
+        trash: number;
+      };
+    } | null>('preview_legacy', { generation }),
+  commitLegacy: (generation: number) => invoke<Reply>('commit_legacy', { generation }),
   layout: (generation: number, layout: Record<string, unknown>) =>
     invoke('report_layout', { generation, layout }),
   boot: () => invoke<Boot>('boot'),
