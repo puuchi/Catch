@@ -4,6 +4,13 @@ const paths: Record<string, string> = {
   trash: 'M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7',
   plus: 'M12 5v14M5 12h14',
   close: 'M6 6l12 12M18 6L6 18',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+  unlink:
+    'm18.84 12.25 1.72-1.71a6 6 0 0 0-8.48-8.48l-1.71 1.71M5.16 11.75l-1.72 1.71a6 6 0 0 0 8.48 8.48l1.71-1.71M8 2v3M2 8h3M16 19v3M19 16h3',
+  archive: 'M3 3h18v5H3zM5 8v13h14V8M10 12h4',
+  restore: 'M3 10h11a5 5 0 0 1 0 10h-3M3 10l5-5M3 10l5 5',
+  back: 'M15 5l-7 7 7 7',
+  plants: 'M12 21v-9M12 15C4 15 3 11 3 5c6 0 9 3 9 10ZM12 12c0-7 4-9 9-9 0 6-3 9-9 9Z',
   check: 'M5 12l4 4L19 6',
   pin: 'M8 3h8M9 3v5l-3 4v2h12v-2l-3-4V3M12 14v7',
   minus: 'M5 12h14',
@@ -41,6 +48,11 @@ const paths: Record<string, string> = {
     stroke-linejoin="round"
     aria-hidden="true"
   >
-    <path :d="paths[name] || paths.info" />
+    <template v-if="name === 'more'">
+      <circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="20" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </template>
+    <path v-else :d="paths[name] || paths.info" />
   </svg>
 </template>

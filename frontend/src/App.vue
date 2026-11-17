@@ -35,6 +35,20 @@ import { human } from './display';
 import type { Owner, Page } from './models';
 const ready = ref(false),
   quitConfirm = ref(false);
+const growthTop = ref(0);
+function positionGrowth() {
+  const strip = document.querySelector('.growth-strip');
+  if (strip) growthTop.value = strip.getBoundingClientRect().bottom + 4;
+}
+function toggleGrowth() {
+  positionGrowth();
+  ui.growthOpen = !ui.growthOpen;
+  ui.settingsOpen = false;
+}
+function toggleAppearance() {
+  ui.settingsOpen = !ui.settingsOpen;
+  ui.growthOpen = false;
+}
 const tabs: { id: Page; name: string; icon: string }[] = [
   { id: 'todos', name: '待办', icon: 'list' },
   { id: 'current', name: '正在做', icon: 'timer' },
@@ -76,10 +90,13 @@ async function reportLayout() {
     .catch(() => {});
 }
 watch(
-  () => [ui.page, ui.selectedMatterId, ui.settingsOpen],
+  () => [ui.page, ui.selectedMatterId, ui.settingsOpen, ui.growthOpen],
   () => void reportLayout(),
 );
-window.addEventListener('resize', () => void reportLayout());
+window.addEventListener('resize', () => {
+  positionGrowth();
+  void reportLayout();
+});
 watch(
   preferences,
   (value) => {
@@ -97,6 +114,7 @@ watch(
 function page(value: Page) {
   ui.page = value;
   ui.settingsOpen = false;
+  ui.growthOpen = false;
   if (value !== 'trash') ui.previousPage = value;
 }
 async function pin() {
@@ -128,6 +146,7 @@ onMounted(async () => {
     await initialize();
     ready.value = true;
     await nextTick();
+    positionGrowth();
     await document.fonts.ready;
     await Promise.all(Array.from(document.images, (image) => image.decode().catch(() => {})));
     await new Promise<void>((resolve) =>
@@ -173,11 +192,10 @@ async function hostFileKind(path: string) {
   return host.classify(generation.value, path);
 }
 function outside(event: PointerEvent) {
-  if (
-    ui.settingsOpen &&
-    !(event.target as HTMLElement).closest('.settings-panel,#btnAppearance,.growth-strip')
-  )
+  if (ui.settingsOpen && !(event.target as HTMLElement).closest('.settings-panel,#btnAppearance'))
     ui.settingsOpen = false;
+  if (ui.growthOpen && !(event.target as HTMLElement).closest('.growth-panel,.growth-strip'))
+    ui.growthOpen = false;
 }
 document.addEventListener('pointerdown', outside);
 </script>
@@ -232,7 +250,9 @@ document.addEventListener('pointerdown', outside);
     class="growth-strip"
     :class="{ celebrating }"
     :title="growth.selected ? '查看今日成长' : '选择今天的植物'"
-    @click="ui.settingsOpen = !ui.settingsOpen"
+    :aria-expanded="!!ui.growthOpen"
+    aria-controls="growthPanel"
+    @click="toggleGrowth"
   >
     <PlantSprite :plant="growth.plant" :stage="growth.stage" :size="25" /><span
       >今日投入 <strong>{{ human(growth.investedMs) }}</strong></span
@@ -257,10 +277,10 @@ document.addEventListener('pointerdown', outside);
     <div class="app-tools-left">
       <button
         id="btnAppearance"
-        title="外观与成长"
-        aria-label="外观与成长设置"
+        title="外观"
+        aria-label="外观设置"
         :aria-expanded="ui.settingsOpen"
-        @click="ui.settingsOpen = !ui.settingsOpen"
+        @click="toggleAppearance"
       >
         <Icon name="sliders" /></button
       ><button
@@ -281,6 +301,12 @@ document.addEventListener('pointerdown', outside);
     ><button @click="quit"><Icon name="power" />退出</button>
   </footer>
   <Settings v-if="ui.settingsOpen && ready" /><Editors /><ResourceDialog /><RepeatDialog />
+  <Settings
+    v-if="ui.growthOpen && ready"
+    id="growthPanel"
+    mode="growth"
+    :style="{ top: `${growthTop}px`, maxHeight: `calc(100% - ${growthTop + 44}px)` }"
+  />
   <Modal v-if="quitConfirm" title="暂停并退出？" @close="quitConfirm = false"
     ><div class="editor-body">
       <p class="confirm-name">{{ current?.name }}</p>

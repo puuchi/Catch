@@ -77,3 +77,19 @@ fn timed_out_windows_cannot_hide_or_overwrite_a_new_generation() {
     assert!(!session.finish_collapse(stale));
     assert_eq!(session.phase(), Phase::Expanded);
 }
+
+#[test]
+fn refreshing_the_current_window_can_report_painted_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = Session::open(Arc::new(FileDisk::new(dir.path()).unwrap())).unwrap();
+    let generation = session.begin_open().unwrap().unwrap();
+    assert!(session.painted(generation));
+    assert!(session.painted(generation));
+    assert_eq!(session.phase(), Phase::Expanded);
+    session
+        .prepare_collapse(generation, UiState::default())
+        .unwrap();
+    assert!(!session.painted(generation));
+    assert!(session.finish_collapse(generation));
+    assert!(!session.painted(generation));
+}

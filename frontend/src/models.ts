@@ -154,18 +154,22 @@ export interface UiState {
   history: boolean;
   activityName: string;
   composer: TodoFields;
+  composerResources?: Resource[];
   composerExpanded: boolean;
   progressDrafts: Record<string, string>;
   backgroundOpen: boolean;
   editor: EditorDraft | null;
   expandedTodos: string[];
+  collapsedTodos?: string[];
+  expandedTodoNotes?: string[];
   expandedResources?: string[];
   scroll: Record<string, number>;
   settingsOpen: boolean;
+  growthOpen?: boolean;
   growthPreview: Plant | null;
   trashFilter: 'all' | 'todo' | 'matter' | 'session';
   resourceDraft: {
-    owner: Owner;
+    owner: Owner | { kind: 'composer' };
     mode: 'attach' | 'relocate';
     id?: string;
     target: string;

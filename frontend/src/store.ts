@@ -10,6 +10,7 @@ import type {
   EditorDraft,
   Preferences,
   Owner,
+  Resource,
 } from './models';
 
 const defaults = (): UiState => ({
@@ -23,13 +24,17 @@ const defaults = (): UiState => ({
   history: false,
   activityName: '',
   composer: { text: '', notes: '', urgent: false, deadline: null },
+  composerResources: [],
   composerExpanded: false,
   progressDrafts: {},
   backgroundOpen: true,
   editor: null,
   expandedTodos: [],
+  collapsedTodos: [],
+  expandedTodoNotes: [],
   scroll: {},
   settingsOpen: false,
+  growthOpen: false,
   growthPreview: null,
   trashFilter: 'all',
   resourceDraft: null,
@@ -52,8 +57,27 @@ let initialized = false,
   closing = false,
   saveTimer: ReturnType<typeof setTimeout> | undefined,
   saveQueue = Promise.resolve();
-export function inform(error: unknown) {
+let messageTimer: ReturnType<typeof setTimeout> | undefined;
+export function inform(error: unknown, duration = 0) {
+  clearTimeout(messageTimer);
   message.value = error instanceof Error ? error.message : String(error);
+  if (duration > 0) messageTimer = setTimeout(() => (message.value = ''), duration);
+}
+export function attachComposerResources(resources: Resource[]) {
+  const current = ui.composerResources || [];
+  const identity = (resource: Resource) =>
+    resource.kind === 'web'
+      ? new URL(resource.target).href
+      : resource.target.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+  const keys = new Set(current.map(identity));
+  const added = resources.filter((resource) => {
+    const key = identity(resource);
+    if (keys.has(key)) return false;
+    keys.add(key);
+    return true;
+  });
+  if (current.length + added.length > 32) throw Error('每项最多关联 32 份资料');
+  ui.composerResources = [...current, ...added];
 }
 export function accept(next: Snapshot) {
   const previous = state.value;

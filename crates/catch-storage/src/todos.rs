@@ -197,20 +197,21 @@ impl TodosStore {
             return Ok(self.state.clone());
         }
         self.check_external()?;
-        let result = if matches!(command, Command::Archive) {
-            let journal = Journal {
-                version: 1,
-                before: self.state.todos.clone(),
-                after: candidate.todos.clone(),
-                archive_before: self.state.archive.clone(),
-                archive_after: candidate.archive.clone(),
+        let result =
+            if matches!(command, Command::Archive) || candidate.archive != self.state.archive {
+                let journal = Journal {
+                    version: 1,
+                    before: self.state.todos.clone(),
+                    after: candidate.todos.clone(),
+                    archive_before: self.state.archive.clone(),
+                    archive_after: candidate.archive.clone(),
+                };
+                self.disk
+                    .write_atomic(PENDING, &encode(&journal)?)
+                    .and_then(|_| recover(self.disk.as_ref()))
+            } else {
+                replace(self.disk.as_ref(), TODOS, &candidate.todos)
             };
-            self.disk
-                .write_atomic(PENDING, &encode(&journal)?)
-                .and_then(|_| recover(self.disk.as_ref()))
-        } else {
-            replace(self.disk.as_ref(), TODOS, &candidate.todos)
-        };
         if let Err(error) = result {
             // A partially applied journal must be recovered and reloaded before
             // any further command. Preserve the original error for the caller.

@@ -304,7 +304,7 @@ mod windows {
             (
                 &context.sprout,
                 context.sprout.height,
-                [15, 20, 29, 42, 60][stage],
+                [0, 8, 17, 26, 35][stage],
                 0,
             )
         } else {
@@ -325,21 +325,44 @@ mod windows {
         };
         let size = side(hwnd).max(1) as usize;
         let mut pixels = vec![0_u8; size * size * 4];
-        for pixel in pixels.as_chunks_mut::<4>().0 {
-            pixel[3] = 1;
-        }
+        let scale = size as f64 / 36.;
         for y in 0..size {
             for x in 0..size {
-                let source = ((row * cell + y * cell / size) * image.width
-                    + column * cell
-                    + x * cell / size)
-                    * 4;
+                let distance = ((x as f64 + 0.5 - size as f64 / 2.).powi(2)
+                    + (y as f64 + 0.5 - size as f64 / 2.).powi(2))
+                .sqrt();
+                let coverage = (17.5 * scale + 0.5 - distance).clamp(0., 1.);
+                let alpha = (coverage * 248.) as u32;
+                let color = if distance > 16.4 * scale {
+                    [147_u32, 164, 133]
+                } else {
+                    [249, 248, 238]
+                };
                 let target = (y * size + x) * 4;
-                let alpha = u32::from(image.pixels[source + 3]);
-                pixels[target] = (u32::from(image.pixels[source + 2]) * alpha / 255) as u8;
-                pixels[target + 1] = (u32::from(image.pixels[source + 1]) * alpha / 255) as u8;
-                pixels[target + 2] = (u32::from(image.pixels[source]) * alpha / 255) as u8;
+                pixels[target] = (color[2] * alpha / 255) as u8;
+                pixels[target + 1] = (color[1] * alpha / 255) as u8;
+                pixels[target + 2] = (color[0] * alpha / 255) as u8;
                 pixels[target + 3] = alpha.max(1) as u8;
+            }
+        }
+        let art_size = (size * 30 / 36).max(1);
+        let inset = (size - art_size) / 2;
+        for y in 0..art_size {
+            for x in 0..art_size {
+                let source = ((row * cell + y * cell / art_size) * image.width
+                    + column * cell
+                    + x * cell / art_size)
+                    * 4;
+                let target = ((y + inset) * size + x + inset) * 4;
+                let alpha = u32::from(image.pixels[source + 3]);
+                for channel in 0..3 {
+                    pixels[target + channel] = ((u32::from(image.pixels[source + 2 - channel])
+                        * alpha
+                        + u32::from(pixels[target + channel]) * (255 - alpha))
+                        / 255) as u8;
+                }
+                pixels[target + 3] =
+                    (alpha + u32::from(pixels[target + 3]) * (255 - alpha) / 255) as u8;
             }
         }
         let color = match status {
@@ -347,7 +370,6 @@ mod windows {
             Some(Status::Paused) => [183, 158, 98],
             _ => [156, 163, 175],
         };
-        let scale = size as f64 / 36.;
         let radius = 3.5 * scale;
         for y in 0..size {
             for x in 0..size {

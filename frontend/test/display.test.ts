@@ -2,7 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import { entries, gaps, duration, clock, human, bounds, resizedSegments } from '../src/display.ts';
+import {
+  entries,
+  gaps,
+  duration,
+  clock,
+  human,
+  bounds,
+  resizedSegments,
+  visibleTodos,
+} from '../src/display.ts';
+import type { Todo } from '../src/models.ts';
 const require = createRequire(import.meta.url),
   original = require('../../src/domain/tracking/time.js'),
   sessions = require('../../src/domain/tracking/sessions.js');
@@ -12,6 +22,60 @@ const fixture = JSON.parse(
     'utf8',
   ),
 );
+
+test('urgent todos move above ordinary and deadline-today todos after editing', () => {
+  const rows: Todo[] = [
+    {
+      id: 'ordinary',
+      text: '普通',
+      notes: '',
+      urgent: false,
+      deadline: null,
+      done: false,
+      completedAt: null,
+    },
+    {
+      id: 'today',
+      text: '今天截止',
+      notes: '',
+      urgent: false,
+      deadline: '2026-11-17',
+      done: false,
+      completedAt: null,
+    },
+    {
+      id: 'urgent',
+      text: '紧急',
+      notes: '',
+      urgent: true,
+      deadline: null,
+      done: false,
+      completedAt: null,
+    },
+    {
+      id: 'done',
+      text: '完成',
+      notes: '',
+      urgent: true,
+      deadline: null,
+      done: true,
+      completedAt: '2026-11-17',
+    },
+  ];
+  assert.deepEqual(
+    visibleTodos(rows, '2026-11-17').map((row) => row.id),
+    ['urgent', 'today', 'ordinary', 'done'],
+  );
+  const edited = rows.map((row) => (row.id === 'ordinary' ? { ...row, urgent: true } : row));
+  assert.deepEqual(
+    visibleTodos(edited, '2026-11-17').map((row) => row.id),
+    ['ordinary', 'urgent', 'today', 'done'],
+  );
+  assert.deepEqual(
+    rows.map((row) => row.id),
+    ['ordinary', 'today', 'urgent', 'done'],
+  );
+});
 test('Vue projections retain original timeline order, clipped duration, progress and gaps', () => {
   for (const scenario of fixture.scenarios)
     for (const step of scenario.steps) {

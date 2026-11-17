@@ -234,21 +234,30 @@ function tint(color: string, ms: number) {
           </p>
           <div v-if="menu === entry.session.id" class="inline-menu">
             <button
+              class="icon-button"
+              title="详情"
+              aria-label="详情"
               @click="
                 ui.selectedMatterId = entry.matter.id;
                 menu = null;
               "
             >
-              详情</button
+              <Icon name="arrow" /></button
             ><button
+              class="icon-button"
+              :title="entry.session.endTime ? '编辑本次' : '先暂停，再修改时间'"
+              aria-label="编辑本次"
               :disabled="!entry.session.endTime"
               @click="
                 editSession(entry.matter, entry.session);
                 menu = null;
               "
             >
-              编辑本次</button
+              <Icon name="edit" /></button
             ><button
+              class="icon-button"
+              title="移入回收站"
+              aria-label="移入回收站"
               @click="
                 remove('delete-session', {
                   activityId: entry.matter.id,
@@ -256,7 +265,7 @@ function tint(color: string, ms: number) {
                 })
               "
             >
-              移入回收站
+              <Icon name="trash" />
             </button>
           </div>
         </article>

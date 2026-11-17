@@ -86,7 +86,8 @@ impl Session {
         Ok(Some(self.generation))
     }
     pub fn painted(&mut self, generation: u64) -> bool {
-        if self.generation != generation || self.phase != Phase::Opening {
+        if self.generation != generation || !matches!(self.phase, Phase::Opening | Phase::Expanded)
+        {
             return false;
         }
         self.phase = Phase::Expanded;

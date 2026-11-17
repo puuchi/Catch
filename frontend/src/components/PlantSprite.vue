@@ -7,7 +7,7 @@ const props = withDefaults(defineProps<{ plant: Plant; stage: number; size?: num
 const style = computed(() => {
   const s = Math.max(0, Math.min(4, props.stage));
   if (props.plant === 'sprout') {
-    const frame = [15, 20, 29, 42, 60][s];
+    const frame = [0, 8, 17, 26, 35][s];
     return {
       width: `${props.size}px`,
       height: `${props.size}px`,

@@ -359,6 +359,128 @@ fn completed_todo(store: &mut TodosStore) {
     )
     .unwrap();
 }
+
+#[test]
+fn restoring_archived_todos_recovers_partial_two_file_writes() {
+    for file in ["catch-archive-pending.json", "archive.json", "todos.json"] {
+        for after in [false, true] {
+            let disk = Arc::new(Memory::default());
+            let mut store = TodosStore::open(disk.clone()).unwrap();
+            completed_todo(&mut store);
+            todo_issue(&mut store, todos::Command::Archive, "unused").unwrap();
+            disk.fail(file, after, false);
+            let result = todo_issue(
+                &mut store,
+                todos::Command::RestoreArchive { id: "a".into() },
+                "unused",
+            );
+            assert!(result.is_err(), "{file}, after={after}");
+            let recovered = TodosStore::open(disk.clone()).unwrap();
+            let restored = file != "catch-archive-pending.json" || after;
+            if restored {
+                assert!(recovered.snapshot().archive.is_empty());
+                assert_eq!(recovered.snapshot().todos.len(), 1);
+                assert!(!recovered.snapshot().todos[0].done);
+                assert_eq!(recovered.snapshot().todos[0].notes, "原备注");
+            } else {
+                assert!(recovered.snapshot().todos.is_empty());
+                assert_eq!(recovered.snapshot().archive.len(), 1);
+            }
+            assert!(disk.read("catch-archive-pending.json").unwrap().is_none());
+        }
+    }
+}
+
+#[test]
+fn creating_a_todo_and_its_resources_commits_together_and_preserves_a_failed_draft() {
+    let disk = Arc::new(Memory::default());
+    let mut store = TodosStore::open(disk.clone()).unwrap();
+    let command: todos::Command = serde_json::from_value(serde_json::json!({
+        "type":"create-with-resources", "payload":{
+            "fields":{"text":"阅读材料","notes":"保留备注","urgent":false,"deadline":null},
+            "resources":[{"id":"ref","kind":"web","title":"参考资料","target":"https://example.com"}]
+        }
+    })).unwrap();
+    disk.fail("todos.json", false, false);
+    assert!(todo_issue(&mut store, command.clone(), "with-resources").is_err());
+    assert!(store.snapshot().todos.is_empty());
+    assert!(TodosStore::open(disk.clone())
+        .unwrap()
+        .snapshot()
+        .todos
+        .is_empty());
+    todo_issue(&mut store, command, "with-resources").unwrap();
+    let restored = TodosStore::open(disk.clone()).unwrap();
+    assert_eq!(restored.snapshot().todos.len(), 1);
+    assert_eq!(restored.snapshot().todos[0].notes, "保留备注");
+    assert_eq!(restored.snapshot().todos[0].resources[0].title, "参考资料");
+    let mut invalid = restored.snapshot().todos[0].resources.clone();
+    invalid.push(invalid[0].clone());
+    let before = disk.files.lock().unwrap().clone();
+    assert!(todo_issue(
+        &mut store,
+        todos::Command::CreateWithResources {
+            fields: todos::Fields {
+                text: "重复资料".into(),
+                notes: String::new(),
+                urgent: false,
+                deadline: None
+            },
+            resources: invalid,
+        },
+        "invalid"
+    )
+    .is_err());
+    assert_eq!(*disk.files.lock().unwrap(), before);
+}
+
+#[test]
+fn restoring_a_recurring_archive_does_not_create_two_unfinished_occurrences() {
+    let disk = Arc::new(Memory::default());
+    let mut store = TodosStore::open(disk.clone()).unwrap();
+    store
+        .recurrence_command(
+            &catch_core::recurrence::Command::Create {
+                fields: todos::Fields {
+                    text: "阅读".into(),
+                    notes: "".into(),
+                    urgent: false,
+                    deadline: None,
+                },
+                resources: vec![],
+                schedule: catch_core::recurrence::Schedule::Daily,
+                starts_on: "2026-11-14".into(),
+            },
+            0,
+            "2026-11-14",
+            "daily",
+        )
+        .unwrap();
+    let archived_id = store.snapshot().todos[0].id.clone();
+    todo_issue(
+        &mut store,
+        todos::Command::Complete {
+            id: archived_id.clone(),
+            done: true,
+        },
+        "unused",
+    )
+    .unwrap();
+    todo_issue(&mut store, todos::Command::Archive, "unused").unwrap();
+    store.refresh_recurrences("2026-11-15").unwrap();
+    let before = store.snapshot().clone();
+    assert!(todo_issue(
+        &mut store,
+        todos::Command::RestoreArchive { id: archived_id },
+        "unused"
+    )
+    .is_err());
+    assert_eq!(store.snapshot(), &before);
+    assert_eq!(
+        TodosStore::open(disk).unwrap().snapshot().todos,
+        before.todos
+    );
+}
 #[test]
 fn archive_recovers_after_process_termination_at_every_commit_boundary() {
     for stage in [

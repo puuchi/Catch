@@ -1,9 +1,35 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import Modal from './Modal.vue';
+import Icon from './Icon.vue';
+import DatePicker from './DatePicker.vue';
 import { busy, dispatch, state, ui } from '../store';
 import { human, resizedSegments } from '../display';
 const error = ref('');
+let compositionEnded = -Infinity;
+let composing = false;
+function compositionEnd() {
+  composing = false;
+  compositionEnded = performance.now();
+}
+function todoKey(event: KeyboardEvent) {
+  if (
+    ui.editor?.kind !== 'todo' ||
+    event.isComposing ||
+    event.keyCode === 229 ||
+    performance.now() - compositionEnded < 80
+  )
+    return;
+  const target = event.target as HTMLElement;
+  if (event.key !== 'Enter' || event.repeat) return;
+  if (
+    (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text') ||
+    (target.tagName === 'TEXTAREA' && (event.ctrlKey || event.metaKey))
+  ) {
+    event.preventDefault();
+    void save();
+  }
+}
 const title = computed(() =>
   ui.editor?.kind === 'todo'
     ? '编辑待办'
@@ -17,6 +43,8 @@ watch(
   () => ui.editor,
   () => {
     error.value = '';
+    composing = false;
+    compositionEnded = -Infinity;
   },
   { flush: 'sync' },
 );
@@ -45,8 +73,10 @@ const previewDuration = computed(() => {
   }
 });
 async function save() {
+  if (ui.editor?.kind === 'todo' && busy.value) return;
   const draft = ui.editor;
   if (!draft) return;
+  if (draft.kind === 'todo' && (composing || performance.now() - compositionEnded < 80)) return;
   error.value = '';
   try {
     if (['todo', 'matter'].includes(draft.kind) && !draft.name.trim()) throw Error('先写下名称');
@@ -104,7 +134,13 @@ async function save() {
 </script>
 <template>
   <Modal v-if="ui.editor" :title="title" @close="ui.editor = null"
-    ><form novalidate @submit.prevent="save">
+    ><form
+      novalidate
+      @submit.prevent="save"
+      @keydown="todoKey"
+      @compositionend="compositionEnd"
+      @compositionstart="composing = true"
+    >
       <div class="editor-body">
         <select
           v-if="ui.editor.kind === 'record'"
@@ -134,17 +170,8 @@ async function save() {
             rows="3"
             maxlength="2000"
             aria-label="备注"
-            placeholder="备注（可选）"
+            placeholder="备注（可选）&#10;Enter 换行 · Ctrl+Enter 保存"
           />
-          <div class="editor-option-row">
-            <label><input v-model="ui.editor.urgent" type="checkbox" />紧急</label
-            ><input
-              v-if="ui.editor.scope === 'once'"
-              v-model="ui.editor.deadline"
-              type="date"
-              aria-label="截止日期"
-            />
-          </div>
           <select v-if="recurring" v-model="ui.editor.scope" aria-label="修改范围">
             <option value="once">仅本次</option>
             <option value="future">本次及以后</option>
@@ -177,7 +204,11 @@ async function save() {
         >
         <p v-if="error" role="alert" class="editor-error">{{ error }}</p>
       </div>
-      <footer class="editor-buttons">
+      <footer class="editor-buttons" :class="{ 'todo-editor-buttons': ui.editor.kind === 'todo' }">
+        <div v-if="ui.editor.kind === 'todo'" class="editor-option-row">
+          <label><input v-model="ui.editor.urgent" type="checkbox" />紧急</label>
+          <DatePicker v-if="ui.editor.scope === 'once'" v-model="ui.editor.deadline" />
+        </div>
         <button type="button" @click="ui.editor = null">取消</button
         ><button class="primary" :disabled="!!busy">保存</button>
       </footer>

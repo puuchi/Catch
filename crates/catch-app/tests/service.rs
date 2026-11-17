@@ -475,11 +475,20 @@ fn matters_keep_independent_resource_snapshots_after_todo_relocation_and_deletio
                     },
                     resource_id: "resource-1".into(),
                     target: r"D:\资料\新版.pdf".into(),
+                    title: Some("新版阅读材料".into()),
                 }),
             },
             context("unused"),
         )
         .unwrap();
+    assert_eq!(
+        service.snapshot().todos.todos[0].resources[0].title,
+        "新版阅读材料"
+    );
+    assert_eq!(
+        service.snapshot().tracking.activities[0].resources[0].title,
+        "阅读.pdf"
+    );
     service
         .execute(
             Request {

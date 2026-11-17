@@ -80,6 +80,10 @@ impl Fields {
 #[serde(tag = "type", content = "payload", rename_all = "kebab-case")]
 pub enum Command {
     Create(Fields),
+    CreateWithResources {
+        fields: Fields,
+        resources: Vec<crate::resources::Resource>,
+    },
     Edit {
         id: String,
         #[serde(flatten)]
@@ -99,6 +103,9 @@ pub enum Command {
         id: String,
     },
     Archive,
+    RestoreArchive {
+        id: String,
+    },
     SetResources {
         id: String,
         resources: Vec<crate::resources::Resource>,
@@ -201,8 +208,12 @@ impl Document {
         calendar_date(context.local_day)?;
         let mut next = self.clone();
         match command {
-            Command::Create(input) => {
+            Command::Create(input) | Command::CreateWithResources { fields: input, .. } => {
                 let fields = input.normalized()?;
+                let resources = match command {
+                    Command::CreateWithResources { resources, .. } => resources.clone(),
+                    _ => vec![],
+                };
                 next.todos.insert(
                     0,
                     Todo {
@@ -214,7 +225,7 @@ impl Document {
                         done: false,
                         completed_at: None,
                         deleted_at: None,
-                        resources: vec![],
+                        resources,
                         recurrence: None,
                         extra: BTreeMap::new(),
                     },
@@ -268,6 +279,27 @@ impl Document {
                 next.archive = next.history();
                 next.todos
                     .retain(|row| !row.done || row.deleted_at.is_some());
+            }
+            Command::RestoreArchive { id } => {
+                let live_index = next.todos.iter().position(|row| row.id == *id);
+                let mut row = next
+                    .todos
+                    .iter()
+                    .find(|row| row.id == *id)
+                    .or_else(|| next.archive.iter().find(|row| row.id == *id))
+                    .cloned()
+                    .ok_or("归档记录已不存在")?;
+                if !row.done || row.deleted_at.is_some() {
+                    return Err("这项记录无法从归档恢复".into());
+                }
+                row.done = false;
+                row.completed_at = None;
+                next.archive.retain(|archived| archived.id != *id);
+                if let Some(index) = live_index {
+                    next.todos[index] = row;
+                } else {
+                    next.todos.insert(0, row);
+                }
             }
         }
         next.revision = self.revision.checked_add(1).ok_or("待办版本超出范围")?;

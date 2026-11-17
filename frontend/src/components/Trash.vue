@@ -24,7 +24,7 @@ async function action(group: 'todos' | 'tracking', type: string, id: string) {
     await dispatch(group, type, { id });
     pending.value = null;
   } catch (error) {
-    inform(error);
+    inform(error, type === 'restore' || type === 'restore-trash' ? 2000 : 0);
   }
 }
 </script>

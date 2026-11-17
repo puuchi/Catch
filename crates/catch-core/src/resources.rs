@@ -161,6 +161,8 @@ pub enum Command {
         owner: Owner,
         resource_id: String,
         target: String,
+        #[serde(default)]
+        title: Option<String>,
     },
 }
 impl Command {
@@ -190,6 +192,7 @@ impl Command {
             Self::Relocate {
                 resource_id,
                 target,
+                title,
                 ..
             } => {
                 let index = next
@@ -197,6 +200,9 @@ impl Command {
                     .position(|resource| resource.id == *resource_id)
                     .ok_or("资料关联已不存在")?;
                 next[index] = next[index].relocated(target)?;
+                if let Some(title) = title {
+                    next[index].title = title.trim().into();
+                }
             }
         }
         validate_list(&next)?;
