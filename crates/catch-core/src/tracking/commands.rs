@@ -69,6 +69,7 @@ pub enum Command {
     NextSession {
         activity_id: String,
         session_id: String,
+        #[serde(default)]
         progress: String,
     },
     UpdateMatter {
@@ -150,6 +151,60 @@ fn fresh(doc: &Document, id: &str, name: String, time: &str, todo_id: Option<Str
     }
 }
 impl Document {
+    /// Save the last session draft and end the matter as one validated change.
+    pub fn finish(
+        &self,
+        activity_id: &str,
+        session_id: Option<&str>,
+        progress: Option<&str>,
+        expected_revision: u64,
+        context: Context<'_>,
+    ) -> Result<Self> {
+        if expected_revision != self.revision {
+            return Err("记录已变化，请核对后重试".into());
+        }
+        let target = &self.activities[self.index(activity_id)?];
+        if target.status == Status::Completed {
+            return Err("事项已结束".into());
+        }
+        if progress.is_some() && session_id.is_none() {
+            return Err("保存进展需要本次记录标识".into());
+        }
+        if let Some(id) = session_id {
+            let mut target = target.clone();
+            target.ensure_sessions()?;
+            if target
+                .sessions
+                .as_ref()
+                .and_then(|rows| rows.last())
+                .is_none_or(|row| row.id != id)
+            {
+                return Err("最后一次记录已变化，请核对后重试".into());
+            }
+        }
+        let mut candidate = if let Some(progress) = progress {
+            self.apply(
+                &Command::SetProgress {
+                    activity_id: activity_id.into(),
+                    session_id: session_id.unwrap().into(),
+                    progress: progress.into(),
+                },
+                expected_revision,
+                context,
+            )?
+        } else {
+            self.clone()
+        };
+        // Intermediate progress is never published or persisted independently.
+        candidate.revision = self.revision;
+        candidate.apply(
+            &Command::End {
+                id: Some(activity_id.into()),
+            },
+            expected_revision,
+            context,
+        )
+    }
     fn index(&self, id: &str) -> Result<usize> {
         self.activities
             .iter()

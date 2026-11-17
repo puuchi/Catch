@@ -11,8 +11,10 @@ import {
   bounds,
   resizedSegments,
   visibleTodos,
+  foreground,
+  pausedMatters,
 } from '../src/display.ts';
-import type { Todo } from '../src/models.ts';
+import type { Matter, Todo } from '../src/models.ts';
 const require = createRequire(import.meta.url),
   original = require('../../src/domain/tracking/time.js'),
   sessions = require('../../src/domain/tracking/sessions.js');
@@ -146,4 +148,44 @@ test('duration wording and compact session edits preserve original precision and
       resizedSegments(session, start, end),
       sessions.resizeSessionSegments(session, start, end),
     );
+});
+
+test('closing a completed card keeps paused matters in background until explicitly resumed', () => {
+  const rows = fixture.scenarios[0].steps.find(
+    (step: { expected: { activities: Matter[] } }) =>
+      step.expected.activities.some((matter) => matter.status === 'completed') &&
+      step.expected.activities.some((matter) => matter.status === 'paused'),
+  ).expected.activities as Matter[];
+  const done = rows.find((matter) => matter.status === 'completed')!;
+  const paused = rows.find((matter) => matter.status === 'paused')!;
+  assert.equal(foreground(rows, done.id)?.id, done.id);
+  assert.equal(foreground(rows, null, true), null);
+  assert.equal(foreground(rows, done.id, true), null);
+  assert.equal(foreground(rows, null)?.id, paused.id);
+  assert.equal(
+    foreground(
+      rows.map((matter) => (matter.id === paused.id ? { ...matter, status: 'running' } : matter)),
+      null,
+      true,
+    )?.id,
+    paused.id,
+  );
+});
+
+test('paused matters sort by latest update without mutating the stored array', () => {
+  const sample = fixture.scenarios[0].steps[1].expected.activities[0] as Matter;
+  const rows: Matter[] = [
+    { ...sample, id: 'old', updatedAt: '2026-11-17T01:00:00Z' },
+    { ...sample, id: 'new', updatedAt: '2026-11-17T03:00:00Z' },
+    { ...sample, id: 'front', updatedAt: '2026-11-17T04:00:00Z' },
+    { ...sample, id: 'middle', updatedAt: '2026-11-17T02:00:00Z' },
+  ];
+  assert.deepEqual(
+    pausedMatters(rows, 'front').map((matter) => matter.id),
+    ['new', 'middle', 'old'],
+  );
+  assert.deepEqual(
+    rows.map((matter) => matter.id),
+    ['old', 'new', 'front', 'middle'],
+  );
 });

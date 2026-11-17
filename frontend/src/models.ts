@@ -148,6 +148,7 @@ export interface UiState {
   page: Page;
   previousPage: Page;
   foregroundId: string | null;
+  foregroundClosed?: boolean;
   selectedMatterId: string | null;
   timelineDate: string;
   focusedMatterId: string | null;
@@ -200,7 +201,7 @@ export interface Boot {
   preferences: Preferences;
   isolated: boolean;
 }
-export type Group = 'tracking' | 'todos' | 'growth' | 'resources' | 'recurrence';
+export type Group = 'tracking' | 'finish' | 'todos' | 'growth' | 'resources' | 'recurrence';
 export interface Reply {
   ok: boolean;
   state: Snapshot;

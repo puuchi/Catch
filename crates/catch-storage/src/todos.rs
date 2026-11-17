@@ -67,16 +67,17 @@ fn recover(disk: &dyn Disk) -> Result<()> {
     disk.remove(PENDING)
 }
 pub struct TodosStore {
-    disk: Arc<dyn Disk>,
-    state: Document,
-    expected: Option<Vec<u8>>,
+    pub(crate) disk: Arc<dyn Disk>,
+    pub(crate) state: Document,
+    pub(crate) expected: Option<Vec<u8>>,
     expected_archive: Option<Vec<u8>>,
-    rules: recurrence::Document,
-    expected_rules: Option<Vec<u8>>,
-    blocked: bool,
+    pub(crate) rules: recurrence::Document,
+    pub(crate) expected_rules: Option<Vec<u8>>,
+    pub(crate) blocked: bool,
 }
 impl TodosStore {
     pub fn open(disk: Arc<dyn Disk>) -> Result<Self> {
+        crate::finish::recover(disk.as_ref())?;
         schedule::recover(disk.as_ref())?;
         recover(disk.as_ref())?;
         let state = Document {
@@ -112,7 +113,7 @@ impl TodosStore {
     pub fn recurrences(&self) -> &recurrence::Document {
         &self.rules
     }
-    fn check_external(&mut self) -> Result<()> {
+    pub(crate) fn check_external(&mut self) -> Result<()> {
         if self.blocked {
             return Err("存储状态需要恢复，已停止写入".into());
         }

@@ -1,6 +1,6 @@
 # Catch Tauri 界面修改交接
 
-更新日期为 2026 年 11 月 17 日，仓库位于 `D:\Data\Documents\Project\Catch`，当前分支为 `work/catch-next`。用 `git log -1 --oneline` 查看本轮提交。
+更新日期为 2026 年 11 月 17 日，仓库位于 `D:\Data\Documents\Project\Catch`，当前分支为 `work/catch-next`。“正在做”收尾版保存为 `feat(current): finalize progress workflow and allow narrower windows`，可用 Git 日志定位；时间轴后续改动与该版本分开。
 
 ## 用户的工作偏好
 
@@ -51,34 +51,55 @@ Electron 代码仍在 `src/`，用作已有行为的参考。当前改动接入 
 - 绿芽五阶段选取素材帧 `0, 8, 17, 26, 35`，依次为土壤、一片叶、两片叶、三片叶、四片叶，Vue 和原生悬浮植物使用相同帧。
 - 用户在体验后要求回退玻璃卡片和缩放。当前悬浮形态恢复为 `ccf11f2` 的 36 × 36 逻辑像素植物、浅色圆底板和状态点，跟随系统 DPI。原生实现和偏好逻辑已恢复该版本，玻璃背景窗口、卡片底部阶段点、Ctrl+滚轮及菜单缩放已随回退删除。
 
+## 本轮“正在做”已确认并接入的行为
+
+- 进展回车或失焦保存，成功后显示正文和铅笔，点击铅笔重新编辑。失败保留草稿和编辑态，并阻止随后暂停、继续或开始新事项。草稿继续使用 `ui.progressDrafts`。
+- “下一步”允许空进展，沿用同一事项划分下一次投入。前端保存锁与点击次数拦截双击，Rust 同时校验版本和最后 sessionId，旧 session 不能重复分段。
+- 后台暂停事项显示事项自身颜色，按 `updatedAt` 最近更新优先；标题只保留“后台 数量”，删除重复的两竖线和中间的点。按用户确认，不修改顶部“正在做”标签的提示点规则。
+- 结束卡片删除“重新开始”，显示最后一条非空进展；“查看过程”进入现有事项详情，展示每次投入的时间、时长和进展。
+- 只在已结束卡片增加关闭。关闭只收起卡片、不删除记录、不自动顶上其他暂停事项；`ui.foregroundClosed` 随界面保存，重开保持收起，明确继续或开始活动才重新显示卡片。界面保存失败回退卡片。共用保存队列不再产生未处理的拒绝。
+- 结束关联未完成待办的事项时询问“仅结束”或“结束并完成待办”；关闭确认框或 Escape 取消，不提前保存或清除草稿。前台、后台结束入口统一调用新 `finish` 命令。无有效未完成关联待办时直接仅结束。
+- `finish` 的 command 为 `{ activityId, sessionId?, progress?, completeTodo, expectedTodosRevision }`，外层 `expectedRevision` 为 tracking 版本。Rust 同一操作保存最后进展、结束状态、可选待办完成及周期规则变化。
+- `crates/catch-storage/src/finish.rs` 使用 `catch-finish-pending.json` 保存 before/after，再提交活动、待办、周期规则和回执。失败尝试恢复，不能确认时阻止后续写入，重启先恢复；仅整体完成才返回成功。`catch-finish-receipts.json` 支持成功请求跨重启幂等重放，目前没有回执清理策略。
+- `FitTimer.vue` 根据计时器实际可用宽度及字体测量缩小字号，按钮组固定宽度；窗口最低可缩到 260 CSS 像素可用视口宽度。默认打开宽度仍为 320 逻辑像素，不整体缩放 UI；页面报告后按实际 DPR 校准原生最小宽度，保留系统文字缩放，高度最低仍为 300 逻辑像素。没有靠隐藏横向滚动条裁掉计时数字。
+- 已有事项主卡片和详情继续复用待办同款 `Resources.vue` / `ResourceDialog.vue`，支持文件、文件夹、网页和原有修改/移除行为。用户确认不在“开始新活动”区域新增资料草稿入口。
+
 ## 后续“正在做”设计时需要了解的业务
 
 - 同时只有一个事项运行，可以有多个后台暂停事项。
 - 前台卡片会保留手动暂停的事项，继续时沿用同一事项及累计投入。
 - 计时以 Rust 的有效投入区间和 sessions 为准，切换 WebView 或收起窗口后仍由宿主管理。
-- 待办完成和计时结束是独立操作，按用户后续明确提出的需求调整联动。
+- 待办完成和计时结束保持独立；用户明确选择“结束并完成待办”时，通过本轮新增的可靠组合事务联动。
 - 本次进展保存、下一步、暂停、结束、结束摘要和详情入口均有现有调用方，修改时需要检查对应正常入口。
 
 ## 验证和运行
 
-本轮通过 Rust 工作区测试、Clippy、Vue 类型检查、格式检查、前端测试、隔离宿主中的真实 Vue 交互检查，以及 Windows release 编译。
+本轮通过 Rust 工作区 77 项测试（0 失败，原有性能采样 1 项忽略）、工作区 Clippy、桌面 DPI/异常比例 2 项测试、桌面 Clippy、Vue 类型检查、格式检查、前端 5 项测试，以及 Windows release 编译。
 
-隔离界面检查覆盖归档入口位置、归档页独立返回按钮、已完成分组内的归档按钮、删除原工具行、归档成功和不同恢复错误的 2 秒提示、连续提示重新计时、日历悬停及打开选择器、普通和重复待办带资料创建、失败保留草稿、资料名称与路径修改、窄窗口布局。回退时已核对三个原生文件与 `ccf11f2` 完全一致。
+真实 Vue 隔离宿主通过 20 组交互/渲染检查，覆盖保存成功后切正文、保存失败保留草稿并阻止后续动作、确认取消、仅结束/联动完成、后台结束、空进展下一步、慢保存连续点击和快速保存真实双击、最后进展及过程详情、关闭持久化及失败回退、同款资料关联和失败重试。覆盖 320×300、320×640、480×640、740×800，5/100/1000/999999 小时计时及按钮边界；长进展、详情、相关弹窗、三个主页面、归档/回收站/设置均未发现横向溢出，浏览器未处理错误为零。
+
+另用临时数据目录运行真实 release Tauri/WebView2/Rust：验证待办开始、进展保存、空下一步、防双击、网页资料、结束取消、联动完成、三次投入详情、关闭后重载；直接核对活动/待办/回执文件整体保存，事务日志已清理。原生 DPI=2、WebView DPR≈2.56 时，旧 260 宽度偏好被校准到 820 物理像素，视口报告 321 CSS 像素，相关渲染无横向溢出。测试实例已通过正常退出关闭，没有访问正式数据。Windows 文件/文件夹选择器及跨屏缩放仍请用户实机体验。
+
+用户反馈后将最低可用宽度由 320 放宽到 260，并保留默认打开尺寸；后台标题只保留文字。收尾版重跑 20 组真实 Vue 检查，覆盖 260×300、260×640、280×640 及更宽尺寸，进展、资料、长计时、弹窗、详情及其他主页面未发现横向溢出，计时按钮宽度不变。Vue 类型/格式、前端 5 项测试、桌面 2 项尺寸测试通过；尚未在本收尾提交中重建原生 exe，最终时间轴版另行构建。
+
+上一轮隔离界面检查覆盖归档入口位置、归档页独立返回按钮、已完成分组内的归档按钮、删除原工具行、归档成功和不同恢复错误的 2 秒提示、连续提示重新计时、日历悬停及打开选择器、普通和重复待办带资料创建、失败保留草稿、资料名称与路径修改、窄窗口布局。回退时已核对三个原生文件与 `ccf11f2` 完全一致。
 
 常用命令在仓库根目录运行。
 
 ```powershell
-npm --prefix frontend run check
-npm --prefix frontend run format:check
-npm --prefix frontend test
-.\tools\rust.ps1 -Action test
-.\tools\rust.ps1 -Action clippy
-.\tools\desktop.ps1 -Action build -TargetDirectory artifacts/tauri-next-target
+npm.cmd --prefix frontend run check
+npm.cmd --prefix frontend run format:check
+npm.cmd --prefix frontend test
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\rust.ps1 -Action test
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\rust.ps1 -Action clippy
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\desktop.ps1 -Action build -TargetDirectory artifacts/tauri-next-target
 ```
 
 本轮测试程序为 `artifacts/tauri-next-target/release/catch-next.exe`。运行前从旧 Catch Next 底部退出，应用使用单实例和数据目录锁。默认数据目录为 `%APPDATA%\io.github.puuchi.catch.next`。
 
 本地的 `artifacts/requirements-review/` 中保留了隔离宿主和 Playwright 检查脚本，这些文件受 Git 忽略，仅在当前工作区可用。入口为 `ui-review.vite.mjs`、`check-real-ui.cjs`、`check-resource-paths.cjs` 和 `check-final-feedback.cjs`。示例日期固定在 11 月 16 日。
+
+本轮 `check-current.cjs`、`check-native.cjs`、隔离宿主、截图和构建日志放在会话临时目录（不会随 Git 保留）；核心/应用/存储的 `tests/finish.rs`、桌面尺寸测试及前端投影测试随代码保留。
 
 旧的植物重置测试脚本只针对 2026 年 11 月 16 日，后续测试直接使用当前程序即可。
 

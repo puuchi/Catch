@@ -24,6 +24,16 @@ use std::{
 };
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 static EXITING: AtomicBool = AtomicBool::new(false);
+const MIN_CONTENT_WIDTH: f64 = 260.;
+fn minimum_main_size(dpr: f64, scale: f64) -> Option<tauri::PhysicalSize<u32>> {
+    if !dpr.is_finite() || !scale.is_finite() || !(0.5..=16.).contains(&dpr) || !(0.5..=8.).contains(&scale) {
+        return None;
+    }
+    Some(tauri::PhysicalSize::new(
+        (MIN_CONTENT_WIDTH * dpr).ceil() as u32,
+        (300. * scale).ceil() as u32,
+    ))
+}
 type Runtime = Mutex<Desktop>;
 struct Desktop {
     service: Service,
@@ -62,7 +72,7 @@ impl Default for Preferences {
 impl Preferences {
     fn validated(mut self) -> Self {
         self.width = if self.width.is_finite() {
-            self.width.clamp(260., 1200.)
+            self.width.clamp(MIN_CONTENT_WIDTH, 1200.)
         } else {
             320.
         };
@@ -266,8 +276,19 @@ fn report_layout(
     {
         return Err("布局诊断过大".into());
     }
+    let dpr = layout["dpr"].as_f64().ok_or("页面像素比例无效")?;
     desktop.layout = layout;
     drop(desktop);
+    // CSS pixels can differ from native logical pixels under Windows text scaling.
+    // Reserve the verified content width without overriding the user's text scale.
+    let minimum = minimum_main_size(dpr, window.scale_factor().map_err(|error| error.to_string())?)
+        .ok_or("页面像素比例无效")?;
+    window.set_min_size(Some(minimum)).map_err(|error| error.to_string())?;
+    let size = window.inner_size().map_err(|error| error.to_string())?;
+    if size.width < minimum.width {
+        window.set_size(tauri::PhysicalSize::new(minimum.width, size.height.max(minimum.height)))
+            .map_err(|error| error.to_string())?;
+    }
     diagnostics(&app);
     Ok(())
 }
@@ -521,7 +542,7 @@ pub(crate) fn expand(app: &AppHandle) {
         )
         .title("Catch · 本地预览")
         .inner_size(preferences.width, preferences.height)
-        .min_inner_size(260., 300.)
+        .min_inner_size(MIN_CONTENT_WIDTH, 300.)
         .decorations(false)
         .transparent(true)
         .visible(false)
@@ -638,4 +659,22 @@ fn main() {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod window_size_tests {
+    use super::minimum_main_size;
+    #[test]
+    fn minimum_width_preserves_css_content_at_dpi_and_text_scales() {
+        assert_eq!(minimum_main_size(1., 1.).unwrap(), tauri::PhysicalSize::new(260, 300));
+        assert_eq!(minimum_main_size(2., 2.).unwrap(), tauri::PhysicalSize::new(520, 600));
+        assert_eq!(minimum_main_size(2.56, 2.).unwrap(), tauri::PhysicalSize::new(666, 600));
+    }
+    #[test]
+    fn invalid_pixel_ratios_are_rejected() {
+        for value in [f64::NAN, f64::INFINITY, 0., -1., 100.] {
+            assert!(minimum_main_size(value, 1.).is_none());
+            assert!(minimum_main_size(1., value).is_none());
+        }
+    }
 }

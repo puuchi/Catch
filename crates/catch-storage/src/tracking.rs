@@ -4,10 +4,10 @@ use std::sync::Arc;
 const FILE: &str = "activity-log.json";
 const BACKUP: &str = "activity-log.json.bak";
 pub struct TrackingStore {
-    disk: Arc<dyn Disk>,
-    state: Document,
-    expected: Option<Vec<u8>>,
-    blocked: bool,
+    pub(crate) disk: Arc<dyn Disk>,
+    pub(crate) state: Document,
+    pub(crate) expected: Option<Vec<u8>>,
+    pub(crate) blocked: bool,
     pub notice: Option<String>,
 }
 enum ReadError {
@@ -56,6 +56,7 @@ pub(crate) fn decode_import(bytes: &[u8]) -> Result<Document> {
 }
 impl TrackingStore {
     pub fn open(disk: Arc<dyn Disk>, now: i64, recovery_id: &str) -> Result<Self> {
+        crate::finish::recover(disk.as_ref())?;
         if recovery_id.is_empty()
             || !recovery_id
                 .chars()

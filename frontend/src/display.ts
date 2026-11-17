@@ -57,13 +57,14 @@ export const statusText = (status?: string) =>
   '从一件小事开始';
 export const statusShort = (status: string) =>
   ({ running: '进行中', paused: '已暂停', completed: '已完成' })[status] || '';
-export const foreground = (items: Matter[], retained: string | null) =>
+export const foreground = (items: Matter[], retained: string | null, closed = false) =>
   items.find((i) => i.status === 'running') ||
-  items.find((i) => i.id === retained) ||
-  items
-    .filter((i) => i.status === 'paused')
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] ||
+  (!closed && (items.find((i) => i.id === retained) || pausedMatters(items)[0])) ||
   null;
+export const pausedMatters = (items: Matter[], foregroundId?: string) =>
+  items
+    .filter((i) => i.status === 'paused' && i.id !== foregroundId)
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 export const visibleTodos = (rows: Todo[], today: string) =>
   rows
     .filter((t) => !t.deletedAt && (!t.done || t.completedAt === today))

@@ -18,6 +18,7 @@ const defaults = (): UiState => ({
   page: 'todos',
   previousPage: 'todos',
   foregroundId: null,
+  foregroundClosed: false,
   selectedMatterId: null,
   timelineDate: day(),
   focusedMatterId: null,
@@ -94,8 +95,11 @@ export function accept(next: Snapshot) {
             : previous.recurrences,
       }
     : next;
-  const current = foreground(state.value.tracking.activities, ui.foregroundId);
-  if (current) ui.foregroundId = current.id;
+  const current = foreground(state.value.tracking.activities, ui.foregroundId, ui.foregroundClosed);
+  if (current) {
+    ui.foregroundId = current.id;
+    ui.foregroundClosed = false;
+  }
 }
 export const snapshotUi = () => JSON.parse(JSON.stringify(ui)) as UiState;
 export function flushUi() {
@@ -103,7 +107,10 @@ export function flushUi() {
   const value = snapshotUi(),
     token = generation.value;
   const save = saveQueue.catch(() => {}).then(() => host.stash(token, value));
-  saveQueue = save.then(() => {});
+  saveQueue = save.then(
+    () => {},
+    () => {},
+  );
   return save;
 }
 watch(
@@ -120,7 +127,7 @@ watch(
 export async function dispatch(group: Group, type: string, payload: Record<string, unknown> = {}) {
   if (!state.value) throw Error('正在加载');
   const document =
-    group === 'tracking'
+    group === 'tracking' || group === 'finish'
       ? state.value.tracking
       : group === 'todos'
         ? state.value.todos
@@ -133,7 +140,12 @@ export async function dispatch(group: Group, type: string, payload: Record<strin
               : state.value.tracking;
   busy.value++;
   try {
-    const command = ['archive', 'checkpoint'].includes(type) ? { type } : { type, payload };
+    const command =
+      group === 'finish'
+        ? { ...payload, expectedTodosRevision: state.value.todos.revision }
+        : ['archive', 'checkpoint'].includes(type)
+          ? { type }
+          : { type, payload };
     const reply = await host.command(
       generation.value,
       group,

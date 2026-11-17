@@ -2,6 +2,7 @@
 //! The desktop composition root must retain ProfileLock for the whole lifetime
 //! of all stores using the same directory.
 mod disk;
+pub mod finish;
 mod growth;
 pub mod legacy;
 mod schedule;

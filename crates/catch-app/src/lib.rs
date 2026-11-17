@@ -16,11 +16,23 @@ pub enum UserCommand {
     Growth(growth::Command),
     Resources(resources::Command),
     Recurrence(RecurrenceRequest),
+    Finish(FinishRequest),
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecurrenceRequest {
     pub command: recurrence::Command,
+    pub expected_todos_revision: u64,
+}
+/// A plain command payload, not a nested tagged tracking command.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinishRequest {
+    pub activity_id: String,
+    pub session_id: Option<String>,
+    pub progress: Option<String>,
+    #[serde(default)]
+    pub complete_todo: bool,
     pub expected_todos_revision: u64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -81,6 +93,7 @@ pub struct Context<'a> {
     pub new_id: &'a str,
 }
 pub struct Service {
+    disk: Arc<dyn Disk>,
     tracking: TrackingStore,
     todos: TodosStore,
     growth: GrowthStore,
@@ -90,8 +103,8 @@ pub struct Service {
 }
 impl Service {
     fn ensure_import_ready(&self) -> Result<()> {
-        if self.import_blocked {
-            Err(Error::storage("导入恢复尚未完成，请保留文件并重启"))
+        if self.import_blocked || self.tracking.is_blocked() || self.todos.is_blocked() {
+            Err(Error::storage("存储恢复尚未完成，请保留文件并重启"))
         } else {
             Ok(())
         }
@@ -129,17 +142,19 @@ impl Service {
     }
     pub fn open(disk: Arc<dyn Disk>, context: Context<'_>) -> Result<Self> {
         todos::calendar_date(context.local_day).map_err(Error::validation)?;
+        catch_storage::finish::recover(disk.as_ref()).map_err(Error::storage)?;
         catch_storage::legacy::recover(disk.as_ref()).map_err(Error::storage)?;
         // Validate/recover todos first: a broken archive must not silently
         // become an empty successful snapshot.
         let growth = GrowthStore::open(disk.clone()).map_err(Error::storage)?;
         let mut todos = TodosStore::open(disk.clone()).map_err(Error::storage)?;
-        let tracking =
-            TrackingStore::open(disk, context.now, context.new_id).map_err(Error::storage)?;
+        let tracking = TrackingStore::open(disk.clone(), context.now, context.new_id)
+            .map_err(Error::storage)?;
         todos
             .refresh_recurrences(context.local_day)
             .map_err(Error::storage)?;
         Ok(Self {
+            disk,
             tracking,
             todos,
             growth,
@@ -171,11 +186,101 @@ impl Service {
         {
             return Err(Error::validation("请求标识无效或操作内容过大"));
         }
+        if let Some(receipt) =
+            catch_storage::finish::lookup(self.disk.as_ref(), &request.request_id)
+                .map_err(Error::storage)?
+        {
+            if receipt.fingerprint != fingerprint {
+                return Err(Error::conflict("请求标识已用于其他操作"));
+            }
+            return serde_json::from_slice(&receipt.response)
+                .map_err(|error| Error::storage(format!("结束回执无法读取：{error}")));
+        }
         if let Some(replay) = self.cache.lookup(&request.request_id, &fingerprint) {
             return replay;
         }
         todos::calendar_date(context.local_day).map_err(Error::validation)?;
         match request.operation.clone() {
+            UserCommand::Finish(operation) => {
+                if request.expected_revision != self.tracking.snapshot().revision
+                    || operation.expected_todos_revision != self.todos.snapshot().revision
+                {
+                    return Err(Error::conflict("投入记录或待办已变化，请核对后重试"));
+                }
+                let tracking = self
+                    .tracking
+                    .snapshot()
+                    .finish(
+                        &operation.activity_id,
+                        operation.session_id.as_deref(),
+                        operation.progress.as_deref(),
+                        request.expected_revision,
+                        tracking::Context {
+                            now: context.now,
+                            new_id: context.new_id,
+                        },
+                    )
+                    .map_err(Error::validation)?;
+                let mut todos = self.todos.snapshot().clone();
+                if operation.complete_todo {
+                    let matter = tracking
+                        .activities
+                        .iter()
+                        .find(|row| row.id == operation.activity_id)
+                        .unwrap();
+                    let id = matter
+                        .todo_id
+                        .as_deref()
+                        .ok_or_else(|| Error::validation("事项没有关联待办"))?;
+                    if !todos
+                        .todos
+                        .iter()
+                        .any(|row| row.id == id && !row.done && row.deleted_at.is_none())
+                    {
+                        return Err(Error::validation("关联待办已完成、删除或不存在"));
+                    }
+                    todos = todos
+                        .apply(
+                            &todos::Command::Complete {
+                                id: id.into(),
+                                done: true,
+                            },
+                            operation.expected_todos_revision,
+                            todos::Context {
+                                now: context.now,
+                                local_day: context.local_day,
+                                new_id: context.new_id,
+                            },
+                        )
+                        .map_err(Error::validation)?;
+                }
+                let rules = self
+                    .todos
+                    .recurrences()
+                    .after_todo_change(self.todos.snapshot(), &todos, context.local_day)
+                    .map_err(Error::validation)?;
+                let mut response = self.snapshot();
+                response.tracking = tracking.clone();
+                response.todos = todos.clone();
+                response.recurrences = rules.clone();
+                let receipt = catch_storage::finish::Receipt {
+                    request_id: request.request_id.clone(),
+                    fingerprint: fingerprint.clone(),
+                    response: serde_json::to_vec(&response)
+                        .map_err(|e| Error::storage(e.to_string()))?,
+                };
+                catch_storage::finish::commit(
+                    &mut self.tracking,
+                    &mut self.todos,
+                    catch_storage::finish::Candidate {
+                        tracking,
+                        todos,
+                        rules,
+                    },
+                    receipt,
+                )
+                .map_err(Error::storage)?;
+            }
             UserCommand::Recurrence(operation) => {
                 if request.expected_revision != self.todos.recurrences().revision
                     || operation.expected_todos_revision != self.todos.snapshot().revision
