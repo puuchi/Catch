@@ -117,6 +117,11 @@ function page(value: Page) {
   ui.growthOpen = false;
   if (value !== 'trash') ui.previousPage = value;
 }
+function toggleArchive() {
+  const returning = ui.page === 'todos' && ui.history;
+  page('todos');
+  ui.history = !returning;
+}
 async function pin() {
   preferences.pinned = !preferences.pinned;
   await savePreferences();
@@ -294,6 +299,14 @@ document.addEventListener('pointerdown', outside);
         "
       >
         <Icon name="trash" />
+      </button>
+      <button
+        :title="ui.page === 'todos' && ui.history ? '返回待办' : '归档'"
+        :aria-label="ui.page === 'todos' && ui.history ? '返回待办' : '归档'"
+        :aria-pressed="ui.page === 'todos' && ui.history"
+        @click="toggleArchive"
+      >
+        <Icon name="archive" />
       </button>
     </div>
     <span v-if="isolated" class="local-preview" title="使用独立预览数据，不会修改原版记录"

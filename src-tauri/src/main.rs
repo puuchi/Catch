@@ -46,6 +46,7 @@ struct Preferences {
     height: f64,
     main_position: Option<tauri::PhysicalPosition<i32>>,
     bubble_position: Option<tauri::PhysicalPosition<i32>>,
+    bubble_scale: u16,
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -56,6 +57,7 @@ impl Default for Preferences {
             height: 510.,
             main_position: None,
             bubble_position: None,
+            bubble_scale: 100,
         }
     }
 }
@@ -72,6 +74,9 @@ impl Preferences {
             510.
         };
         self.transparency = self.transparency.min(100);
+        self.bubble_scale = self
+            .bubble_scale
+            .clamp(native::MIN_SCALE, native::MAX_SCALE);
         // Positions are physical pixels. Invalid/offscreen monitor positions
         // are fitted to the current work area before showing either surface.
         self.main_position = self
@@ -207,8 +212,9 @@ fn collapse(
     desktop.preferences.width = f64::from(size.width) / scale;
     desktop.preferences.height = f64::from(size.height) / scale;
     desktop.preferences.main_position = Some(position);
+    let bubble_width = native::CARD_WIDTH * f64::from(desktop.preferences.bubble_scale) / 100.;
     desktop.preferences.bubble_position = Some(tauri::PhysicalPosition::new(
-        position.x + (size.width as i32 - (36. * scale) as i32) / 2,
+        position.x + (size.width as i32 - (bubble_width * scale).round() as i32) / 2,
         position.y,
     ));
     desktop.disk.write_atomic(
@@ -220,7 +226,7 @@ fn collapse(
     let handle = app.clone();
     app.run_on_main_thread(move || {
         let bubble_position = tauri::PhysicalPosition::new(
-            position.x + (size.width as i32 - (36. * scale) as i32) / 2,
+            position.x + (size.width as i32 - (bubble_width * scale).round() as i32) / 2,
             position.y,
         );
         if let Err(error) = native::show(&handle, Some(bubble_position)) {
@@ -281,6 +287,26 @@ pub(crate) fn remember_native_position(app: &AppHandle, position: tauri::Physica
             }
         }
     }
+}
+pub(crate) fn native_scale(app: &AppHandle) -> u16 {
+    app.state::<Runtime>()
+        .lock()
+        .map(|desktop| desktop.preferences.bubble_scale)
+        .unwrap_or(100)
+}
+pub(crate) fn save_native_scale(app: &AppHandle, scale: u16) -> Result<(), String> {
+    let state = app.state::<Runtime>();
+    let mut desktop = state.lock().map_err(|_| "状态锁失败")?;
+    let next = Preferences {
+        bubble_scale: scale.clamp(native::MIN_SCALE, native::MAX_SCALE),
+        ..desktop.preferences.clone()
+    };
+    desktop.disk.write_atomic(
+        "catch-preferences.json",
+        &serde_json::to_vec(&next).map_err(|error| error.to_string())?,
+    )?;
+    desktop.preferences = next;
+    Ok(())
 }
 #[tauri::command]
 fn save_preferences(
@@ -541,7 +567,12 @@ pub(crate) fn expand(app: &AppHandle) {
                     let _ = native::fit_main(
                         &main,
                         Some(tauri::PhysicalPosition::new(
-                            position.x - ((preferences.width - 36.) * scale / 2.) as i32,
+                            position.x
+                                - ((preferences.width
+                                    - native::CARD_WIDTH * f64::from(preferences.bubble_scale)
+                                        / 100.)
+                                    * scale
+                                    / 2.) as i32,
                             position.y,
                         )),
                     );
@@ -638,4 +669,31 @@ fn main() {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn existing_preferences_open_at_the_default_glass_card_size() {
+        let preferences: Preferences =
+            serde_json::from_str(r#"{"transparency":45,"pinned":true}"#).unwrap();
+        assert_eq!(preferences.validated().bubble_scale, 100);
+        assert_eq!((native::CARD_WIDTH, native::CARD_HEIGHT), (68., 76.));
+    }
+
+    #[test]
+    fn floating_scale_is_clamped_and_survives_preference_round_trips() {
+        for (value, expected) in [(0, 75), (125, 125), (65535, 150)] {
+            let preferences = Preferences {
+                bubble_scale: value,
+                ..Preferences::default()
+            }
+            .validated();
+            let bytes = serde_json::to_vec(&preferences).unwrap();
+            let reopened: Preferences = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(reopened.bubble_scale, expected);
+        }
+    }
 }

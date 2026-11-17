@@ -43,13 +43,14 @@ Electron 代码仍在 `src/`，用作已有行为的参考。当前改动接入 
 - 日历使用独立可见按钮，悬停显示应用自己的“截止日期”Tooltip，点击后通过 `showPicker()` 打开原生日期选择器。透明日期输入框不再覆盖按钮接收鼠标。
 - 新增待办的工具栏包含紧急、日历、重复和资料曲别针。重复仅显示图标，Tooltip 为“重复”或“修改重复”。
 - 新增资料暂存在 `ui.composerResources`，随界面草稿保存。普通待办带资料时使用 `todos/create-with-resources` 一次保存标题、备注和资料。重复待办沿用 `recurrence/create` 的资料字段。取消时清空资料，创建失败保留草稿。
-- “历史”入口已改为归档图标。归档记录右侧显示日期和恢复图标。恢复保留原 ID、备注、资料、重复关联和扩展字段。
+- “历史”入口已改为归档图标，位于应用底部垃圾桶旁。“归档已完成”图标位于“今日已完成”标题旁，原有待办计数工具行已删除。归档记录右侧显示日期和恢复图标。恢复保留原 ID、备注、资料、重复关联和扩展字段。
 - 归档恢复成功与失败的全部提示均在 2 秒后消失，包含周期冲突。回收站恢复操作的错误提示也使用 2 秒。新的提示会重新计时。
 - 周期事项继续遵循同一规则最多一个未完成实例，恢复冲突会显示原因。
 - 页面刷新时，当前窗口可以重复通知绘制完成，旧窗口版本和已收起窗口的回调仍被拦截。
 - 今日投入展开独立的成长面板，保留每日目标。选定植物后展示五阶段并突出当前阶段，右上角图标可浏览所有植物，浏览只改变预览。
 - 绿芽五阶段选取素材帧 `0, 8, 17, 26, 35`，依次为土壤、一片叶、两片叶、三片叶、四片叶，Vue 和原生悬浮植物使用相同帧。
-- 悬浮植物增加浅色圆底板和细边框，植物内缩，右下角保留状态点，让初始和萌芽阶段更容易找到。原生绘制使用预乘透明度合成，尺寸继续随 DPI 缩放。
+- 悬浮植物采用默认 68 × 76 逻辑像素的圆角暖白半透明玻璃卡片，内部为像素植物、浅色台座和五个成长阶段圆点。一个原生窗口提供系统背景模糊，另一个分层窗口绘制卡片和植物，两者一起移动、缩放、隐藏和销毁。系统模糊不可用时使用半透明暖白底色。
+- 悬浮卡片支持 75%–150% 等比缩放，每步 5%。Ctrl+滚轮和右键菜单可以调整，右键可还原 68 × 76。缩放比例保存在 `catch-preferences.json` 的 `bubble_scale` 字段中，旧偏好文件默认使用 100%，展开和收起时按当前缩放宽度居中。
 
 ## 后续“正在做”设计时需要了解的业务
 
@@ -63,7 +64,7 @@ Electron 代码仍在 `src/`，用作已有行为的参考。当前改动接入 
 
 本轮通过 Rust 工作区测试、Clippy、Vue 类型检查、格式检查、前端测试、隔离宿主中的真实 Vue 交互检查，以及 Windows release 编译。
 
-隔离界面检查覆盖归档成功和不同恢复错误的 2 秒提示、连续提示重新计时、日历悬停及打开选择器、普通和重复待办带资料创建、失败保留草稿、资料名称与路径修改、窄窗口布局。原生悬浮底板仍需用户在实际桌面上确认视觉效果。
+隔离界面检查覆盖归档入口位置、已完成分组内的归档按钮、删除原工具行、归档成功和不同恢复错误的 2 秒提示、连续提示重新计时、日历悬停及打开选择器、普通和重复待办带资料创建、失败保留草稿、资料名称与路径修改、窄窗口布局。原生测试覆盖旧偏好文件兼容、缩放边界和序列化后恢复。玻璃卡片的实际桌面模糊效果仍需用户确认。
 
 常用命令在仓库根目录运行。
 
@@ -73,10 +74,11 @@ npm --prefix frontend run format:check
 npm --prefix frontend test
 .\tools\rust.ps1 -Action test
 .\tools\rust.ps1 -Action clippy
-.\tools\desktop.ps1 -Action build -TargetDirectory artifacts/tauri-next-target
+.\tools\desktop.ps1 -Action test -TargetDirectory artifacts/tauri-optimized-target
+.\tools\desktop.ps1 -Action build -TargetDirectory artifacts/tauri-optimized-target
 ```
 
-本轮测试程序为 `artifacts/tauri-next-target/release/catch-next.exe`。运行前从旧 Catch Next 底部退出，应用使用单实例和数据目录锁。默认数据目录为 `%APPDATA%\io.github.puuchi.catch.next`。
+本轮测试程序为 `artifacts/tauri-optimized-target/release/catch-next.exe`。运行前从旧 Catch Next 底部退出，应用使用单实例和数据目录锁。默认数据目录为 `%APPDATA%\io.github.puuchi.catch.next`。
 
 本地的 `artifacts/requirements-review/` 中保留了隔离宿主和 Playwright 检查脚本，这些文件受 Git 忽略，仅在当前工作区可用。入口为 `ui-review.vite.mjs`、`check-real-ui.cjs`、`check-resource-paths.cjs` 和 `check-final-feedback.cjs`。示例日期固定在 11 月 16 日。
 

@@ -354,6 +354,16 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
       <template v-for="(todo, index) in rows" :key="todo.id">
         <li v-if="groupLabel(todo, index)" class="section-divider">
           {{ ui.history ? groupLabel(todo, index).replace('-', ' 年 ') + ' 月' : '今日已完成' }}
+          <button
+            v-if="!ui.history"
+            class="icon-button archive-completed"
+            title="归档已完成"
+            aria-label="归档已完成"
+            :disabled="!!busy"
+            @click="action('archive', {})"
+          >
+            <Icon name="broom" />
+          </button>
         </li>
         <li
           class="todo-item"
@@ -475,33 +485,6 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
         {{ ui.history ? '还没有完成的记录' : '留一点空白，也很好。' }}
       </li>
     </ul>
-    <footer class="footer">
-      <button
-        class="icon-button"
-        :title="ui.history ? '返回待办' : '归档'"
-        :aria-label="ui.history ? '返回待办' : '归档'"
-        :aria-pressed="ui.history"
-        @click="ui.history = !ui.history"
-      >
-        <Icon :name="ui.history ? 'back' : 'archive'" /></button
-      ><span class="muted small">{{
-        ui.history
-          ? `${rows.length} 项记录`
-          : rows.filter((t) => !t.done).length
-            ? `${rows.filter((t) => !t.done).length} 件待办`
-            : ''
-      }}</span
-      ><button
-        v-if="!ui.history"
-        class="icon-button"
-        title="归档已完成"
-        aria-label="归档已完成"
-        :disabled="!!busy"
-        @click="action('archive', {})"
-      >
-        <Icon name="broom" />
-      </button>
-    </footer>
   </section>
   <ActionMenu
     v-if="menu"

@@ -1,8 +1,12 @@
-//! Windows boundary: one plain layered HWND, independent of WebView/Tao window
+//! Windows boundary: a layered plant HWND and a native blur backdrop, independent of WebView/Tao window
 //! builders. No unstable Tauri APIs are used. All UI work stays on the UI thread.
 use std::sync::atomic::{AtomicIsize, Ordering};
 use tauri::{AppHandle, Manager};
 pub struct Surface(AtomicIsize);
+pub(crate) const CARD_WIDTH: f64 = 68.;
+pub(crate) const CARD_HEIGHT: f64 = 76.;
+pub(crate) const MIN_SCALE: u16 = 75;
+pub(crate) const MAX_SCALE: u16 = 150;
 
 #[cfg(windows)]
 mod windows {
@@ -15,7 +19,7 @@ mod windows {
     };
     type WndProc = unsafe extern "system" fn(isize, u32, usize, isize) -> isize;
     #[repr(C)]
-    #[derive(Default, Clone, Copy)]
+    #[derive(Default, Clone, Copy, PartialEq, Eq)]
     struct Point {
         x: i32,
         y: i32,
@@ -81,6 +85,19 @@ mod windows {
         flags: u8,
         alpha: u8,
         format: u8,
+    }
+    #[repr(C)]
+    struct AccentPolicy {
+        state: i32,
+        flags: u32,
+        color: u32,
+        animation: u32,
+    }
+    #[repr(C)]
+    struct CompositionData {
+        attribute: i32,
+        data: *mut c_void,
+        size: usize,
     }
     #[link(name = "user32")]
     unsafe extern "system" {
@@ -152,6 +169,7 @@ mod windows {
         fn SetForegroundWindow(hwnd: isize) -> i32;
         fn SetWindowTextW(hwnd: isize, text: *const u16) -> i32;
         fn MessageBoxW(hwnd: isize, text: *const u16, title: *const u16, flags: u32) -> i32;
+        fn SetWindowRgn(hwnd: isize, region: isize, redraw: i32) -> i32;
     }
     #[link(name = "gdi32")]
     unsafe extern "system" {
@@ -167,10 +185,19 @@ mod windows {
         ) -> isize;
         fn SelectObject(dc: isize, object: isize) -> isize;
         fn DeleteObject(object: isize) -> i32;
+        fn CreateRoundRectRgn(
+            left: i32,
+            top: i32,
+            right: i32,
+            bottom: i32,
+            ellipse_width: i32,
+            ellipse_height: i32,
+        ) -> isize;
     }
     #[link(name = "kernel32")]
     unsafe extern "system" {
         fn GetModuleHandleW(name: *const u16) -> isize;
+        fn GetProcAddress(module: isize, name: *const u8) -> *const c_void;
     }
     #[link(name = "wtsapi32")]
     unsafe extern "system" {
@@ -191,6 +218,32 @@ mod windows {
     const REDRAW: u32 = 0x8001;
     fn wide(text: &str) -> Vec<u16> {
         text.encode_utf16().chain(Some(0)).collect()
+    }
+    fn enable_blur(hwnd: isize) -> bool {
+        let module = unsafe { GetModuleHandleW(wide("user32.dll").as_ptr()) };
+        let address =
+            unsafe { GetProcAddress(module, c"SetWindowCompositionAttribute".as_ptr().cast()) };
+        if address.is_null() {
+            return false;
+        }
+        let set_composition = unsafe {
+            std::mem::transmute::<
+                *const c_void,
+                unsafe extern "system" fn(isize, *mut CompositionData) -> i32,
+            >(address)
+        };
+        let mut accent = AccentPolicy {
+            state: 3,
+            flags: 2,
+            color: 0,
+            animation: 0,
+        };
+        let mut data = CompositionData {
+            attribute: 19,
+            data: (&mut accent as *mut AccentPolicy).cast(),
+            size: std::mem::size_of::<AccentPolicy>(),
+        };
+        unsafe { set_composition(hwnd, &mut data) != 0 }
     }
     struct Image {
         width: usize,
@@ -238,16 +291,105 @@ mod windows {
         drag: Cell<Option<Drag>>,
         provider: Option<::windows::Win32::UI::Accessibility::IRawElementProviderSimple>,
         last_paint: RefCell<Option<PaintKey>>,
+        scale: Cell<u16>,
+        wheel_delta: Cell<i32>,
+        glass: Cell<isize>,
+        glass_size: Cell<Point>,
     }
     #[derive(PartialEq, Eq)]
     struct PaintKey {
         plant: Plant,
         stage: u8,
         status: Option<Status>,
-        size: i32,
+        size: Point,
     }
-    fn side(hwnd: isize) -> i32 {
-        36 * unsafe { GetDpiForWindow(hwnd) }.max(96) as i32 / 96
+    fn size(hwnd: isize) -> Point {
+        let pointer = unsafe { GetWindowLongPtrW(hwnd, -21) } as *const Context;
+        let percent = if pointer.is_null() {
+            100
+        } else {
+            unsafe { (*pointer).scale.get() }
+        };
+        let scale =
+            f64::from(unsafe { GetDpiForWindow(hwnd) }.max(96)) / 96. * f64::from(percent) / 100.;
+        Point {
+            x: (CARD_WIDTH * scale).round() as i32,
+            y: (CARD_HEIGHT * scale).round() as i32,
+        }
+    }
+    fn place_glass(hwnd: isize, context: &Context, point: Point, size: Point, visible: bool) {
+        let glass = context.glass.get();
+        if glass == 0 {
+            return;
+        }
+        if context.glass_size.get() != size {
+            let scale = f64::from(size.x) / CARD_WIDTH;
+            let inset = (2. * scale).round() as i32;
+            let corner = (36. * scale).round() as i32;
+            let region = unsafe {
+                CreateRoundRectRgn(
+                    inset,
+                    inset,
+                    size.x - inset + 1,
+                    size.y - inset + 1,
+                    corner,
+                    corner,
+                )
+            };
+            if region == 0 || unsafe { SetWindowRgn(glass, region, 0) } == 0 {
+                unsafe {
+                    if region != 0 {
+                        DeleteObject(region);
+                    }
+                    ShowWindow(glass, 0);
+                }
+                return;
+            }
+            context.glass_size.set(size);
+            context.last_paint.replace(None);
+        }
+        unsafe {
+            SetWindowPos(
+                glass,
+                hwnd,
+                point.x,
+                point.y,
+                size.x,
+                size.y,
+                0x0010 | if visible { 0x0040 } else { 0 },
+            );
+        }
+    }
+    fn resize(hwnd: isize, context: &Context, percent: u16) -> Result<(), String> {
+        let percent = percent.clamp(MIN_SCALE, MAX_SCALE);
+        if percent == context.scale.get() {
+            return Ok(());
+        }
+        crate::save_native_scale(&context.app, percent)?;
+        context.scale.set(percent);
+        let mut rect = Rect::default();
+        unsafe {
+            GetWindowRect(hwnd, &mut rect);
+        }
+        let size = size(hwnd);
+        let point = clamp(
+            Point {
+                x: rect.left,
+                y: rect.top,
+            },
+            size.x,
+            size.y,
+        );
+        if unsafe { SetWindowPos(hwnd, -1, point.x, point.y, size.x, size.y, 0x0010) } == 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        place_glass(hwnd, context, point, size, true);
+        paint(hwnd, context, true)?;
+        crate::remember_native_position(
+            &context.app,
+            tauri::PhysicalPosition::new(point.x, point.y),
+        );
+        Ok(())
     }
     fn work_area(point: Point) -> Rect {
         let mut info = Monitor {
@@ -270,13 +412,27 @@ mod windows {
                 .clamp(work.top, (work.bottom - height).max(work.top)),
         }
     }
+    fn rounded_distance(x: f64, y: f64, half_width: f64, half_height: f64, radius: f64) -> f64 {
+        let x = x.abs() - half_width + radius;
+        let y = y.abs() - half_height + radius;
+        x.max(0.).hypot(y.max(0.)) + x.max(y).min(0.) - radius
+    }
+    fn blend_pixel(pixels: &mut [u8], index: usize, color: [u8; 3], alpha: f64) {
+        let alpha = alpha.clamp(0., 255.).round() as u32;
+        for channel in 0..3 {
+            pixels[index + channel] = ((u32::from(color[2 - channel]) * alpha
+                + u32::from(pixels[index + channel]) * (255 - alpha))
+                / 255) as u8;
+        }
+        pixels[index + 3] = (alpha + u32::from(pixels[index + 3]) * (255 - alpha) / 255) as u8;
+    }
     fn paint(hwnd: isize, context: &Context, force: bool) -> Result<(), String> {
         let (plant, stage, status) = crate::presentation(&context.app);
         let key = PaintKey {
             plant,
             stage,
             status: status.clone(),
-            size: side(hwnd).max(1),
+            size: size(hwnd),
         };
         if !force && context.last_paint.borrow().as_ref() == Some(&key) {
             return Ok(());
@@ -323,46 +479,70 @@ mod windows {
                 },
             )
         };
-        let size = side(hwnd).max(1) as usize;
-        let mut pixels = vec![0_u8; size * size * 4];
-        let scale = size as f64 / 36.;
-        for y in 0..size {
-            for x in 0..size {
-                let distance = ((x as f64 + 0.5 - size as f64 / 2.).powi(2)
-                    + (y as f64 + 0.5 - size as f64 / 2.).powi(2))
-                .sqrt();
-                let coverage = (17.5 * scale + 0.5 - distance).clamp(0., 1.);
-                let alpha = (coverage * 248.) as u32;
-                let color = if distance > 16.4 * scale {
-                    [147_u32, 164, 133]
+        let dimensions = size(hwnd);
+        let width = dimensions.x.max(1) as usize;
+        let height = dimensions.y.max(1) as usize;
+        let mut pixels = vec![0_u8; width * height * 4];
+        let scale = width as f64 / CARD_WIDTH;
+        for y in 0..height {
+            for x in 0..width {
+                let px = (x as f64 + 0.5) / scale;
+                let py = (y as f64 + 0.5) / scale;
+                let distance = rounded_distance(px - 34., py - 38., 32., 36., 18.) * scale;
+                let target = (y * width + x) * 4;
+                let shadow = 20. * (-distance.max(0.).powi(2) / (4. * scale * scale)).exp();
+                blend_pixel(&mut pixels, target, [98, 97, 71], shadow);
+                let coverage = (0.5 - distance).clamp(0., 1.);
+                let glow = (-((px - 14.).powi(2) + (py - 10.).powi(2)) / 900.).exp();
+                let opacity = if context.glass.get() != 0 && context.glass_size.get() == dimensions
+                {
+                    105.
                 } else {
-                    [249, 248, 238]
+                    160.
                 };
-                let target = (y * size + x) * 4;
-                pixels[target] = (color[2] * alpha / 255) as u8;
-                pixels[target + 1] = (color[1] * alpha / 255) as u8;
-                pixels[target + 2] = (color[0] * alpha / 255) as u8;
-                pixels[target + 3] = alpha.max(1) as u8;
+                blend_pixel(
+                    &mut pixels,
+                    target,
+                    [253, 250, 238],
+                    (opacity + glow * 35.) * coverage,
+                );
+                let rim = (distance + 1.3 * scale).max(0.) / (1.3 * scale);
+                blend_pixel(
+                    &mut pixels,
+                    target,
+                    [255, 255, 249],
+                    215. * rim.min(1.) * coverage,
+                );
+                let platform = rounded_distance(px - 34., py - 51., 20., 2., 2.) * scale;
+                blend_pixel(
+                    &mut pixels,
+                    target,
+                    [210, 212, 187],
+                    110. * (0.5 - platform).clamp(0., 1.),
+                );
+                pixels[target + 3] = pixels[target + 3].max(1);
             }
         }
-        let art_size = (size * 30 / 36).max(1);
-        let inset = (size - art_size) / 2;
+        let art_size = (48. * scale).round().max(1.) as usize;
+        let inset_x = (width - art_size) / 2;
+        let inset_y = (5. * scale).round() as usize;
         for y in 0..art_size {
             for x in 0..art_size {
                 let source = ((row * cell + y * cell / art_size) * image.width
                     + column * cell
                     + x * cell / art_size)
                     * 4;
-                let target = ((y + inset) * size + x + inset) * 4;
-                let alpha = u32::from(image.pixels[source + 3]);
-                for channel in 0..3 {
-                    pixels[target + channel] = ((u32::from(image.pixels[source + 2 - channel])
-                        * alpha
-                        + u32::from(pixels[target + channel]) * (255 - alpha))
-                        / 255) as u8;
-                }
-                pixels[target + 3] =
-                    (alpha + u32::from(pixels[target + 3]) * (255 - alpha) / 255) as u8;
+                let target = ((y + inset_y) * width + x + inset_x) * 4;
+                blend_pixel(
+                    &mut pixels,
+                    target,
+                    [
+                        image.pixels[source],
+                        image.pixels[source + 1],
+                        image.pixels[source + 2],
+                    ],
+                    f64::from(image.pixels[source + 3]),
+                );
             }
         }
         let color = match status {
@@ -370,27 +550,49 @@ mod windows {
             Some(Status::Paused) => [183, 158, 98],
             _ => [156, 163, 175],
         };
-        let radius = 3.5 * scale;
-        for y in 0..size {
-            for x in 0..size {
-                let distance =
-                    ((x as f64 - 31. * scale).powi(2) + (y as f64 - 31. * scale).powi(2)).sqrt();
-                if distance <= radius {
-                    let color = if distance > radius - scale {
-                        [250, 250, 245]
+        for y in 0..height {
+            for x in 0..width {
+                let px = (x as f64 + 0.5) / scale;
+                let py = (y as f64 + 0.5) / scale;
+                let target = (y * width + x) * 4;
+                let status_distance = (px - 55.).hypot(py - 45.);
+                blend_pixel(
+                    &mut pixels,
+                    target,
+                    [255, 255, 246],
+                    230. * ((3. - status_distance) * scale).clamp(0., 1.),
+                );
+                blend_pixel(
+                    &mut pixels,
+                    target,
+                    color,
+                    255. * ((2.4 - status_distance) * scale).clamp(0., 1.),
+                );
+                for dot in 0..5 {
+                    let current = dot == stage;
+                    let dot_color = if current {
+                        [64, 99, 73]
+                    } else if dot < stage {
+                        [145, 162, 126]
                     } else {
-                        color
+                        [194, 201, 175]
                     };
-                    pixels[(y * size + x) * 4..(y * size + x) * 4 + 4]
-                        .copy_from_slice(&[color[2], color[1], color[0], 255]);
+                    let radius = if current { 1.8 } else { 1.5 };
+                    let distance = (px - (20. + dot as f64 * 7.)).hypot(py - 63.);
+                    blend_pixel(
+                        &mut pixels,
+                        target,
+                        dot_color,
+                        255. * ((radius - distance) * scale + 0.5).clamp(0., 1.),
+                    );
                 }
             }
         }
         let info = BitmapInfo {
             header: BitmapHeader {
                 size: 40,
-                width: size as i32,
-                height: -(size as i32),
+                width: width as i32,
+                height: -(height as i32),
                 planes: 1,
                 bits: 32,
                 compression: 0,
@@ -435,8 +637,8 @@ mod windows {
                     y: rect.top,
                 },
                 &Point {
-                    x: size as i32,
-                    y: size as i32,
+                    x: width as i32,
+                    y: height as i32,
                 },
                 memory,
                 &Point::default(),
@@ -524,9 +726,9 @@ mod windows {
             }
             0x0024 if lp != 0 => {
                 let info = unsafe { &mut *(lp as *mut MinMax) };
-                let side = side(hwnd);
-                info.min_track = Point { x: side, y: side };
-                info.max_track = Point { x: side, y: side };
+                let dimensions = size(hwnd);
+                info.min_track = dimensions;
+                info.max_track = dimensions;
                 return 0;
             }
             0x02e0 | 0x007e => {
@@ -534,19 +736,26 @@ mod windows {
                 unsafe {
                     GetWindowRect(hwnd, &mut rect);
                 }
-                let size = side(hwnd);
+                let size = size(hwnd);
                 let point = clamp(
                     Point {
                         x: rect.left,
                         y: rect.top,
                     },
-                    size,
-                    size,
+                    size.x,
+                    size.y,
                 );
                 unsafe {
-                    SetWindowPos(hwnd, -1, point.x, point.y, size, size, 0x0010);
+                    SetWindowPos(hwnd, -1, point.x, point.y, size.x, size.y, 0x0010);
                     PostMessageW(hwnd, REDRAW, 0, 0);
                 }
+                place_glass(
+                    hwnd,
+                    context,
+                    point,
+                    size,
+                    unsafe { IsWindowVisible(hwnd) } != 0,
+                );
                 return 0;
             }
             0x0201 => {
@@ -577,18 +786,19 @@ mod windows {
                     let dy = cursor.y - drag.cursor.y;
                     if drag.moved || dx.abs() + dy.abs() >= 4 {
                         drag.moved = true;
-                        let size = side(hwnd);
+                        let size = size(hwnd);
                         let point = clamp(
                             Point {
                                 x: drag.origin.x + dx,
                                 y: drag.origin.y + dy,
                             },
-                            size,
-                            size,
+                            size.x,
+                            size.y,
                         );
                         unsafe {
-                            SetWindowPos(hwnd, -1, point.x, point.y, size, size, 0x0010);
+                            SetWindowPos(hwnd, -1, point.x, point.y, size.x, size.y, 0x0010);
                         }
+                        place_glass(hwnd, context, point, size, true);
                         context.drag.set(Some(drag));
                     }
                 }
@@ -621,6 +831,18 @@ mod windows {
                 crate::expand(&context.app);
                 return 0;
             }
+            0x020a if wp & 0x0008 != 0 => {
+                let delta = i32::from((wp >> 16) as u16 as i16) + context.wheel_delta.get();
+                let steps = delta / 120;
+                context.wheel_delta.set(delta % 120);
+                let percent = (i32::from(context.scale.get()) + steps * 5)
+                    .clamp(i32::from(MIN_SCALE), i32::from(MAX_SCALE))
+                    as u16;
+                if let Err(error) = resize(hwnd, context, percent) {
+                    crate::report(&context.app, error);
+                }
+                return 0;
+            }
             0x0205 => {
                 let app = context.app.clone();
                 let mut cursor = Point::default();
@@ -630,6 +852,28 @@ mod windows {
                 let menu = unsafe { CreatePopupMenu() };
                 unsafe {
                     AppendMenuW(menu, 0, 1, wide("打开 Catch").as_ptr());
+                    AppendMenuW(menu, 0x0800, 0, std::ptr::null());
+                    AppendMenuW(
+                        menu,
+                        if context.scale.get() >= MAX_SCALE {
+                            1
+                        } else {
+                            0
+                        },
+                        3,
+                        wide("放大（Ctrl+滚轮）").as_ptr(),
+                    );
+                    AppendMenuW(
+                        menu,
+                        if context.scale.get() <= MIN_SCALE {
+                            1
+                        } else {
+                            0
+                        },
+                        4,
+                        wide("缩小（Ctrl+滚轮）").as_ptr(),
+                    );
+                    AppendMenuW(menu, 0, 5, wide("还原大小（68 × 76）").as_ptr());
                     AppendMenuW(menu, 0x0800, 0, std::ptr::null());
                     AppendMenuW(menu, 0, 2, wide("退出").as_ptr());
                     SetForegroundWindow(hwnd);
@@ -652,6 +896,15 @@ mod windows {
                     crate::expand(&app);
                 } else if selected == 2 {
                     if let Err(error) = crate::request_exit(&app, true) {
+                        crate::report(&app, error);
+                    }
+                } else if (3..=5).contains(&selected) {
+                    let percent = match selected {
+                        3 => context.scale.get().saturating_add(5),
+                        4 => context.scale.get().saturating_sub(5),
+                        _ => 100,
+                    };
+                    if let Err(error) = resize(hwnd, context, percent) {
                         crate::report(&app, error);
                     }
                 }
@@ -693,6 +946,10 @@ mod windows {
             drag: Cell::new(None),
             provider: None,
             last_paint: RefCell::new(None),
+            scale: Cell::new(crate::native_scale(app)),
+            wheel_delta: Cell::new(0),
+            glass: Cell::new(0),
+            glass_size: Cell::new(Point::default()),
         });
         let pointer = Box::into_raw(context);
         let hwnd = unsafe {
@@ -703,8 +960,8 @@ mod windows {
                 0x80000000 | 0x00c00000 | 0x00080000,
                 120,
                 120,
-                36,
-                36,
+                CARD_WIDTH as i32,
+                CARD_HEIGHT as i32,
                 0,
                 0,
                 instance,
@@ -720,10 +977,38 @@ mod windows {
         unsafe {
             (*pointer).provider = Some(crate::accessibility::create(hwnd, app.clone()));
         }
-        if unsafe { WTSRegisterSessionNotification(hwnd, 0) } == 0 {
-            unsafe {
-                DestroyWindow(hwnd);
+        // A separate compositor-backed HWND supplies the desktop blur. The
+        // per-pixel layered plant stays above it and retains its own alpha.
+        let glass = unsafe {
+            CreateWindowExW(
+                0x08000000 | 0x00000080 | 0x00000008,
+                class.as_ptr(),
+                wide("Catch · 玻璃背景").as_ptr(),
+                0x80000000 | 0x08000000,
+                120,
+                120,
+                CARD_WIDTH as i32,
+                CARD_HEIGHT as i32,
+                0,
+                0,
+                instance,
+                std::ptr::null_mut(),
+            )
+        };
+        if glass != 0 {
+            if enable_blur(glass) {
+                unsafe {
+                    (*pointer).glass.set(glass);
+                    SetWindowLongPtrW(hwnd, -8, glass);
+                }
+            } else {
+                unsafe {
+                    DestroyWindow(glass);
+                }
             }
+        }
+        if unsafe { WTSRegisterSessionNotification(hwnd, 0) } == 0 {
+            destroy(hwnd);
             return Err("锁屏通知注册失败".into());
         }
         Ok(hwnd)
@@ -733,17 +1018,22 @@ mod windows {
         unsafe {
             GetWindowRect(hwnd, &mut rect);
         }
-        let size = side(hwnd);
+        let size = size(hwnd);
         let point = clamp(
             position.map(|p| Point { x: p.x, y: p.y }).unwrap_or(Point {
                 x: rect.left,
                 y: rect.top,
             }),
-            size,
-            size,
+            size.x,
+            size.y,
         );
-        if unsafe { SetWindowPos(hwnd, -1, point.x, point.y, size, size, 0x0040 | 0x0010) } == 0 {
+        if unsafe { SetWindowPos(hwnd, -1, point.x, point.y, size.x, size.y, 0x0040 | 0x0010) } == 0
+        {
             return Err(std::io::Error::last_os_error().to_string());
+        }
+        let pointer = unsafe { GetWindowLongPtrW(hwnd, -21) } as *const Context;
+        if !pointer.is_null() {
+            place_glass(hwnd, unsafe { &*pointer }, point, size, true);
         }
         unsafe {
             PostMessageW(hwnd, REDRAW, 0, 0);
@@ -751,8 +1041,12 @@ mod windows {
         Ok(())
     }
     pub fn hide(hwnd: isize) {
+        let pointer = unsafe { GetWindowLongPtrW(hwnd, -21) } as *const Context;
         unsafe {
             ShowWindow(hwnd, 0);
+            if !pointer.is_null() {
+                ShowWindow((*pointer).glass.get(), 0);
+            }
         }
     }
     pub fn redraw(hwnd: isize) {
@@ -801,8 +1095,17 @@ mod windows {
             .map_err(|error| error.to_string())
     }
     pub fn destroy(hwnd: isize) {
+        let pointer = unsafe { GetWindowLongPtrW(hwnd, -21) } as *const Context;
+        let glass = if pointer.is_null() {
+            0
+        } else {
+            unsafe { (*pointer).glass.get() }
+        };
         unsafe {
             DestroyWindow(hwnd);
+            if glass != 0 {
+                DestroyWindow(glass);
+            }
         }
     }
     pub fn open(target: &str) -> Result<(), String> {
