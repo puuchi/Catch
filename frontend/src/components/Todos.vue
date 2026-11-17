@@ -242,6 +242,18 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
 </script>
 <template>
   <section class="module-page todos-page" aria-label="待办">
+    <header v-if="ui.history" class="archive-heading">
+      <button
+        type="button"
+        class="icon-button"
+        title="返回待办"
+        aria-label="返回待办"
+        @click="ui.history = false"
+      >
+        <Icon name="back" />
+      </button>
+      <strong>归档</strong>
+    </header>
     <form
       v-if="!ui.history"
       id="todoComposer"

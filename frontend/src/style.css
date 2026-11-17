@@ -453,6 +453,19 @@ button:disabled {
   padding: 3px;
   color: var(--text-muted);
 }
+.archive-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 0;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.archive-heading .icon-button {
+  width: 24px;
+  height: 24px;
+}
 .todo-menu-button {
   width: 26px;
   height: 26px;

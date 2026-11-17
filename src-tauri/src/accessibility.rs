@@ -53,7 +53,7 @@ impl IRawElementProviderSimple_Impl for PlantProvider_Impl {
         } else if property == UIA_NamePropertyId {
             VARIANT::from(self.name().as_str())
         } else if property == UIA_HelpTextPropertyId {
-            VARIANT::from("单击打开 Catch，拖动移动，Ctrl 加滚轮缩放，右键还原大小")
+            VARIANT::from("单击打开 Catch，拖动移动")
         } else if property == UIA_IsKeyboardFocusablePropertyId
             || property == UIA_IsEnabledPropertyId
         {
