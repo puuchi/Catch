@@ -66,6 +66,16 @@ impl Disk for Memory {
         Self::trip(fault, true)
     }
 }
+fn commit(
+    disk: &Arc<Memory>,
+    tracking: &mut TrackingStore,
+    todos: &mut TodosStore,
+    candidate: Candidate,
+    receipt: Receipt,
+) -> Result<()> {
+    let mut receipts = finish::ReceiptStore::open(disk.clone())?;
+    finish::commit(tracking, todos, candidate, receipt, &mut receipts)
+}
 fn fixture() -> (Arc<Memory>, TrackingStore, TodosStore, Candidate) {
     let disk = Arc::new(Memory::default());
     let mut todos = TodosStore::open(disk.clone()).unwrap();
@@ -135,14 +145,13 @@ fn fixture() -> (Arc<Memory>, TrackingStore, TodosStore, Candidate) {
     // Exercise replacement/backup of a receipt file without losing prior IDs.
     disk.write_atomic(
         "catch-finish-receipts.json",
-        &serde_json::to_vec(&vec![Receipt {
-            request_id: "older".into(),
-            fingerprint: vec![1],
-            response: vec![2],
-        }])
+        &serde_json::to_vec(&serde_json::json!([{
+            "request_id":"older", "fingerprint":[1], "response":[2]
+        }]))
         .unwrap(),
     )
     .unwrap();
+    finish::ReceiptStore::open(disk.clone()).unwrap();
     disk.arm(None);
     (
         disk,
@@ -156,11 +165,7 @@ fn fixture() -> (Arc<Memory>, TrackingStore, TodosStore, Candidate) {
     )
 }
 fn receipt() -> Receipt {
-    Receipt {
-        request_id: "finish".into(),
-        fingerprint: b"same request".to_vec(),
-        response: b"original response".to_vec(),
-    }
+    Receipt::new("finish".into(), b"same request", "original response".into())
 }
 fn clone_candidate(candidate: &Candidate) -> Candidate {
     Candidate {
@@ -179,7 +184,7 @@ fn state(disk: &Memory) -> (tracking::Document, Vec<todos::Todo>, recurrence::Do
 #[test]
 fn errors_before_and_after_every_io_boundary_never_report_partial_success() {
     let (disk, mut tracking, mut todos, candidate) = fixture();
-    finish::commit(&mut tracking, &mut todos, candidate, receipt()).unwrap();
+    commit(&disk, &mut tracking, &mut todos, candidate, receipt()).unwrap();
     let events = disk.events.lock().unwrap().clone();
     assert!(events.iter().any(|e| e == "write:activity-log.json.bak"));
     assert!(events.iter().any(|e| e == "write:todos.json.bak"));
@@ -203,7 +208,7 @@ fn errors_before_and_after_every_io_boundary_never_report_partial_success() {
                 after,
                 crash: false,
             }));
-            let result = finish::commit(&mut tracking, &mut todos, candidate, receipt());
+            let result = commit(&disk, &mut tracking, &mut todos, candidate, receipt());
             disk.arm(None);
             finish::recover(disk.as_ref()).unwrap();
             let actual = state(&disk);
@@ -224,7 +229,7 @@ fn errors_before_and_after_every_io_boundary_never_report_partial_success() {
 #[test]
 fn process_termination_at_every_io_boundary_recovers_whole_documents_and_receipt() {
     let (disk, mut tracking, mut todos, candidate) = fixture();
-    finish::commit(&mut tracking, &mut todos, candidate, receipt()).unwrap();
+    commit(&disk, &mut tracking, &mut todos, candidate, receipt()).unwrap();
     let events = disk.events.lock().unwrap().clone();
     for (index, event) in events.iter().enumerate() {
         for after in [false, true] {
@@ -240,7 +245,8 @@ fn process_termination_at_every_io_boundary_recovers_whole_documents_and_receipt
                 after,
                 crash: true,
             }));
-            assert!(catch_unwind(AssertUnwindSafe(|| finish::commit(
+            assert!(catch_unwind(AssertUnwindSafe(|| commit(
+                &disk,
                 &mut tracking,
                 &mut todos,
                 candidate,
@@ -279,7 +285,8 @@ fn process_termination_at_every_io_boundary_recovers_whole_documents_and_receipt
 #[test]
 fn pending_recovery_refuses_external_changes_or_invalid_intent_without_overwriting() {
     let (disk, mut tracking, mut todos, candidate) = fixture();
-    finish::commit(
+    commit(
+        &disk,
         &mut tracking,
         &mut todos,
         clone_candidate(&candidate),
@@ -299,7 +306,8 @@ fn pending_recovery_refuses_external_changes_or_invalid_intent_without_overwriti
         after: false,
         crash: true,
     }));
-    assert!(catch_unwind(AssertUnwindSafe(|| finish::commit(
+    assert!(catch_unwind(AssertUnwindSafe(|| commit(
+        &disk,
         &mut tracking,
         &mut todos,
         candidate,
@@ -344,10 +352,231 @@ fn external_edits_before_commit_leave_both_documents_and_receipts_untouched() {
             .push(b' ');
         let before = disk.files.lock().unwrap().clone();
         assert!(
-            finish::commit(&mut tracking, &mut todos, candidate, receipt()).is_err(),
+            commit(&disk, &mut tracking, &mut todos, candidate, receipt()).is_err(),
             "{file}"
         );
         assert_eq!(*disk.files.lock().unwrap(), before);
         assert!(finish::lookup(disk.as_ref(), "finish").unwrap().is_none());
     }
+}
+
+#[test]
+fn legacy_receipts_compact_bodies_but_keep_all_request_identities_after_restart() {
+    let disk = Arc::new(Memory::default());
+    let rows: Vec<_> = (0..200)
+        .map(|index| {
+            serde_json::json!({
+                "request_id":format!("request-{index}"),
+                "fingerprint":format!("payload-{index}").into_bytes(),
+                "response":format!("{}-{index}", "x".repeat(1024)).into_bytes()
+            })
+        })
+        .collect();
+    let original = serde_json::to_vec(&rows).unwrap();
+    disk.write_atomic("catch-finish-receipts.json", &original)
+        .unwrap();
+    let store = finish::ReceiptStore::open(disk.clone()).unwrap();
+    assert!(store.lookup("request-0").unwrap().matches(b"payload-0"));
+    assert!(!store.lookup("request-0").unwrap().matches(b"different"));
+    assert!(store.lookup("request-0").unwrap().response.is_none());
+    assert!(store.lookup("request-199").unwrap().response.is_some());
+    assert_eq!(
+        disk.raw("catch-finish-receipts.json.bak").unwrap(),
+        original
+    );
+    let encoded = disk.raw("catch-finish-receipts.json").unwrap();
+    let saved: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+    let saved = saved["receipts"].as_array().unwrap();
+    assert_eq!(saved.len(), 200);
+    assert_eq!(
+        saved
+            .iter()
+            .filter(|row| row.get("response").is_some())
+            .count(),
+        finish::MAX_RESPONSES
+    );
+    assert!(encoded.len() < original.len() / 4);
+    let reopened = finish::ReceiptStore::open(disk.clone()).unwrap();
+    assert!(reopened.lookup("request-0").unwrap().response.is_none());
+    assert!(reopened.lookup("request-199").unwrap().response.is_some());
+    assert_eq!(disk.raw("catch-finish-receipts.json").unwrap(), encoded);
+}
+
+#[test]
+fn total_retained_response_bytes_are_bounded_even_when_each_snapshot_is_large() {
+    let disk = Arc::new(Memory::default());
+    let rows: Vec<_> = (0..3)
+        .map(|index| {
+            Receipt::new(
+                format!("large-{index}"),
+                b"request",
+                "x".repeat(3 * 1024 * 1024),
+            )
+        })
+        .collect();
+    let encoded = serde_json::to_vec(&serde_json::json!({"version":2,"receipts":rows})).unwrap();
+    disk.write_atomic("catch-finish-receipts.json", &encoded)
+        .unwrap();
+    let store = finish::ReceiptStore::open(disk.clone()).unwrap();
+    assert!(store.lookup("large-0").unwrap().response.is_none());
+    let retained: usize = (0..3)
+        .filter_map(|index| {
+            store
+                .lookup(&format!("large-{index}"))
+                .unwrap()
+                .response
+                .as_ref()
+        })
+        .map(String::len)
+        .sum();
+    assert!(retained <= finish::RESPONSE_BUDGET);
+    assert_eq!(retained, 6 * 1024 * 1024);
+}
+
+#[test]
+fn failed_receipt_migration_keeps_a_readable_original_or_compacted_document() {
+    let original = br#"[{"request_id":"legacy","fingerprint":[1],"response":[2]}]"#;
+    let make_disk = || {
+        let disk = Arc::new(Memory::default());
+        disk.files
+            .lock()
+            .unwrap()
+            .insert("catch-finish-receipts.json".into(), original.to_vec());
+        disk
+    };
+    let disk = make_disk();
+    finish::ReceiptStore::open(disk.clone()).unwrap();
+    let events = disk.events.lock().unwrap().clone();
+    for (index, event) in events
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| event.starts_with("write:"))
+    {
+        for after in [false, true] {
+            let disk = make_disk();
+            disk.arm(Some(Fault {
+                index,
+                after,
+                crash: false,
+            }));
+            assert!(
+                finish::ReceiptStore::open(disk.clone()).is_err(),
+                "{event}, after={after}"
+            );
+            disk.arm(None);
+            let store = finish::ReceiptStore::open(disk.clone()).unwrap();
+            assert!(store.lookup("legacy").unwrap().matches(&[1]));
+            assert_eq!(
+                disk.raw("catch-finish-receipts.json.bak").unwrap(),
+                original
+            );
+        }
+    }
+}
+
+#[test]
+fn receipt_index_refuses_external_changes_before_a_finish_writes_anything() {
+    for remove in [false, true] {
+        let (disk, mut tracking, mut todos, candidate) = fixture();
+        let mut receipts = finish::ReceiptStore::open(disk.clone()).unwrap();
+        {
+            let mut files = disk.files.lock().unwrap();
+            if remove {
+                files.remove("catch-finish-receipts.json");
+                assert!(files.contains_key("catch-finish-receipts.json.bak"));
+            } else {
+                files
+                    .get_mut("catch-finish-receipts.json")
+                    .unwrap()
+                    .push(b' ');
+            }
+        }
+        let before = disk.files.lock().unwrap().clone();
+        assert!(finish::commit(
+            &mut tracking,
+            &mut todos,
+            candidate,
+            receipt(),
+            &mut receipts
+        )
+        .is_err());
+        assert_eq!(*disk.files.lock().unwrap(), before);
+        assert!(tracking.is_blocked());
+        assert!(todos.is_blocked());
+    }
+}
+
+#[test]
+fn version_one_pending_finish_can_recover_before_legacy_receipts_are_migrated() {
+    let (disk, mut tracking, mut todos, candidate) = fixture();
+    commit(
+        &disk,
+        &mut tracking,
+        &mut todos,
+        clone_candidate(&candidate),
+        receipt(),
+    )
+    .unwrap();
+    let index = disk
+        .events
+        .lock()
+        .unwrap()
+        .iter()
+        .position(|event| event == "write:todos.json")
+        .unwrap();
+    let (disk, mut tracking, mut todos, candidate) = fixture();
+    disk.arm(Some(Fault {
+        index,
+        after: false,
+        crash: true,
+    }));
+    assert!(catch_unwind(AssertUnwindSafe(|| commit(
+        &disk,
+        &mut tracking,
+        &mut todos,
+        candidate,
+        receipt()
+    )))
+    .is_err());
+    disk.arm(None);
+    let before = serde_json::to_vec(
+        &serde_json::json!([{"request_id":"older","fingerprint":[1],"response":[2]}]),
+    )
+    .unwrap();
+    let after = serde_json::to_vec(&serde_json::json!([
+        {"request_id":"older","fingerprint":[1],"response":[2]},
+        {"request_id":"finish","fingerprint":b"same request","response":b"original response"}
+    ]))
+    .unwrap();
+    let mut journal: serde_json::Value =
+        serde_json::from_slice(&disk.raw("catch-finish-pending.json").unwrap()).unwrap();
+    journal["version"] = 1.into();
+    for change in journal["changes"].as_array_mut().unwrap() {
+        for field in ["before", "after"] {
+            if let Some(text) = change[field].as_str() {
+                change[field] = serde_json::json!(text.as_bytes());
+            }
+        }
+    }
+    let change = journal["changes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|change| change["file"] == "catch-finish-receipts.json")
+        .unwrap();
+    change["before"] = serde_json::json!(before);
+    change["after"] = serde_json::json!(after);
+    disk.files
+        .lock()
+        .unwrap()
+        .insert("catch-finish-receipts.json".into(), before);
+    disk.files.lock().unwrap().insert(
+        "catch-finish-pending.json".into(),
+        serde_json::to_vec(&journal).unwrap(),
+    );
+    finish::recover(disk.as_ref()).unwrap();
+    let store = finish::ReceiptStore::open(disk.clone()).unwrap();
+    assert!(store.lookup("finish").unwrap().matches(b"same request"));
+    assert!(store.lookup("older").unwrap().matches(&[1]));
+    assert!(disk.raw("catch-finish-pending.json").is_none());
 }

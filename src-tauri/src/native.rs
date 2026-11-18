@@ -89,6 +89,66 @@ mod windows {
         alpha: u8,
         format: u8,
     }
+    type HookProc = unsafe extern "system" fn(i32, usize, isize) -> isize;
+    #[repr(C)]
+    struct MeasureItem {
+        control_type: u32,
+        control_id: u32,
+        item_id: u32,
+        width: u32,
+        height: u32,
+        data: usize,
+    }
+    #[repr(C)]
+    struct DrawItem {
+        control_type: u32,
+        control_id: u32,
+        item_id: u32,
+        action: u32,
+        state: u32,
+        item: isize,
+        dc: isize,
+        rect: Rect,
+        data: usize,
+    }
+    #[repr(C)]
+    struct MenuInfo {
+        size: u32,
+        mask: u32,
+        style: u32,
+        max_height: u32,
+        background: isize,
+        context_help: u32,
+        data: usize,
+    }
+    #[repr(C)]
+    struct MenuItemInfo {
+        size: u32,
+        mask: u32,
+        item_type: u32,
+        state: u32,
+        id: u32,
+        submenu: isize,
+        checked: isize,
+        unchecked: isize,
+        data: usize,
+        text: *mut u16,
+        length: u32,
+        bitmap: isize,
+    }
+    #[repr(C)]
+    struct HighContrast {
+        size: u32,
+        flags: u32,
+        scheme: *mut u16,
+    }
+    #[repr(C)]
+    struct CallWndProc {
+        lp: isize,
+        wp: usize,
+        message: u32,
+        hwnd: isize,
+    }
     #[link(name = "user32")]
     unsafe extern "system" {
         fn RegisterClassW(class: *const WndClass) -> u16;
@@ -159,6 +219,21 @@ mod windows {
         fn SetForegroundWindow(hwnd: isize) -> i32;
         fn SetWindowTextW(hwnd: isize, text: *const u16) -> i32;
         fn MessageBoxW(hwnd: isize, text: *const u16, title: *const u16, flags: u32) -> i32;
+        fn GetClassNameW(hwnd: isize, class: *mut u16, capacity: i32) -> i32;
+        fn SetWindowsHookExW(id: i32, hook: Option<HookProc>, module: isize, thread: u32) -> isize;
+        fn UnhookWindowsHookEx(hook: isize) -> i32;
+        fn CallNextHookEx(hook: isize, code: i32, wp: usize, lp: isize) -> isize;
+        fn SetWindowRgn(hwnd: isize, region: isize, redraw: i32) -> i32;
+        fn SetMenuInfo(menu: isize, info: *const MenuInfo) -> i32;
+        fn SetMenuItemInfoW(
+            menu: isize,
+            item: u32,
+            by_position: i32,
+            info: *const MenuItemInfo,
+        ) -> i32;
+        fn SystemParametersInfoW(action: u32, param: u32, data: *mut c_void, flags: u32) -> i32;
+        fn FillRect(dc: isize, rect: *const Rect, brush: isize) -> i32;
+        fn DrawTextW(dc: isize, text: *const u16, count: i32, rect: *mut Rect, format: u32) -> i32;
     }
     #[link(name = "gdi32")]
     unsafe extern "system" {
@@ -174,10 +249,50 @@ mod windows {
         ) -> isize;
         fn SelectObject(dc: isize, object: isize) -> isize;
         fn DeleteObject(object: isize) -> i32;
+        fn CreateSolidBrush(color: u32) -> isize;
+        fn CreateRoundRectRgn(
+            left: i32,
+            top: i32,
+            right: i32,
+            bottom: i32,
+            width: i32,
+            height: i32,
+        ) -> isize;
+        fn FillRgn(dc: isize, region: isize, brush: isize) -> i32;
+        fn SetTextColor(dc: isize, color: u32) -> u32;
+        fn SetBkMode(dc: isize, mode: i32) -> i32;
+        fn CreateFontW(
+            height: i32,
+            width: i32,
+            escapement: i32,
+            orientation: i32,
+            weight: i32,
+            italic: u32,
+            underline: u32,
+            strike_out: u32,
+            char_set: u32,
+            output_precision: u32,
+            clip_precision: u32,
+            quality: u32,
+            pitch_and_family: u32,
+            face: *const u16,
+        ) -> isize;
+    }
+    #[cfg(test)]
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetMenuItemInfoW(
+            menu: isize,
+            item: u32,
+            by_position: i32,
+            info: *mut MenuItemInfo,
+        ) -> i32;
     }
     #[link(name = "kernel32")]
     unsafe extern "system" {
         fn GetModuleHandleW(name: *const u16) -> isize;
+        fn GetProcAddress(module: isize, name: *const u8) -> isize;
+        fn GetCurrentThreadId() -> u32;
     }
     #[link(name = "wtsapi32")]
     unsafe extern "system" {
@@ -198,6 +313,375 @@ mod windows {
     const REDRAW: u32 = 0x8001;
     fn wide(text: &str) -> Vec<u16> {
         text.encode_utf16().chain(Some(0)).collect()
+    }
+    const fn rgb(red: u32, green: u32, blue: u32) -> u32 {
+        red | (green << 8) | (blue << 16)
+    }
+    #[derive(Clone, Copy)]
+    struct PopupTheme {
+        background: u32,
+        text: u32,
+        hover: u32,
+        separator: u32,
+        dark: bool,
+    }
+    thread_local! {
+        static POPUP_THEME: Cell<PopupTheme> = const { Cell::new(PopupTheme {
+            background: rgb(249, 249, 249),
+            text: rgb(26, 26, 26),
+            hover: rgb(234, 234, 234),
+            separator: rgb(218, 218, 218),
+            dark: false,
+        }) };
+        static POPUP_REGION: Cell<(isize, i32, i32)> = const { Cell::new((0, 0, 0)) };
+    }
+    fn mix(background: u32, foreground: u32, percent: u32) -> u32 {
+        fn channel(background: u32, foreground: u32, shift: u32, percent: u32) -> u32 {
+            let background = (background >> shift) & 0xff;
+            let foreground = (foreground >> shift) & 0xff;
+            (background * (100 - percent) + foreground * percent + 50) / 100
+        }
+        rgb(
+            channel(background, foreground, 0, percent),
+            channel(background, foreground, 8, percent),
+            channel(background, foreground, 16, percent),
+        )
+    }
+    fn dip(value: i32, dpi: u32) -> i32 {
+        (value * dpi.max(96) as i32 + 48) / 96
+    }
+    fn high_contrast() -> bool {
+        let mut contrast = HighContrast {
+            size: std::mem::size_of::<HighContrast>() as u32,
+            flags: 0,
+            scheme: std::ptr::null_mut(),
+        };
+        unsafe {
+            SystemParametersInfoW(
+                0x0042,
+                contrast.size,
+                &mut contrast as *mut HighContrast as *mut c_void,
+                0,
+            ) != 0
+                && contrast.flags & 1 != 0
+        }
+    }
+    fn uxtheme(ordinal: u16) -> isize {
+        let module = unsafe { GetModuleHandleW(wide("uxtheme.dll").as_ptr()) };
+        if module == 0 {
+            0
+        } else {
+            unsafe { GetProcAddress(module, usize::from(ordinal) as *const u8) }
+        }
+    }
+    fn should_apps_use_dark_mode() -> bool {
+        let address = uxtheme(132);
+        if address == 0 {
+            return false;
+        }
+        let should_use: unsafe extern "system" fn() -> bool =
+            unsafe { std::mem::transmute(address) };
+        unsafe { should_use() }
+    }
+    fn allow_dark_mode_for_window(hwnd: isize, allow: bool) {
+        let address = uxtheme(133);
+        if address != 0 {
+            let allow_for_window: unsafe extern "system" fn(isize, bool) -> bool =
+                unsafe { std::mem::transmute(address) };
+            unsafe {
+                allow_for_window(hwnd, allow);
+            }
+        }
+    }
+    fn popup_theme() -> Option<PopupTheme> {
+        // High-contrast colors belong to the user's accessibility settings, so
+        // leave the complete menu to Windows instead of approximating them.
+        if high_contrast() {
+            return None;
+        }
+        if should_apps_use_dark_mode() {
+            return Some(PopupTheme {
+                background: rgb(44, 44, 44),
+                text: rgb(255, 255, 255),
+                hover: rgb(65, 65, 65),
+                separator: rgb(82, 82, 82),
+                dark: true,
+            });
+        }
+        let background = rgb(249, 249, 249);
+        let text = rgb(26, 26, 26);
+        Some(PopupTheme {
+            background,
+            text,
+            hover: mix(background, text, 6),
+            separator: mix(background, text, 14),
+            dark: false,
+        })
+    }
+    fn popup_metrics(item_id: u32, dpi: u32) -> (u32, u32) {
+        (
+            dip(144, dpi) as u32,
+            dip(if item_id == 0 { 9 } else { 36 }, dpi) as u32,
+        )
+    }
+    fn popup_content_rect(item_id: u32, mut rect: Rect, dpi: u32) -> Rect {
+        if item_id == 1 {
+            rect.top += dip(4, dpi);
+        } else if item_id == 2 {
+            rect.bottom -= dip(4, dpi);
+        }
+        rect
+    }
+    fn measure_popup_item(hwnd: isize, lp: isize) -> bool {
+        if lp == 0 {
+            return false;
+        }
+        let item = unsafe { &mut *(lp as *mut MeasureItem) };
+        if item.control_type != 1 {
+            return false;
+        }
+        let (width, height) = popup_metrics(item.item_id, unsafe { GetDpiForWindow(hwnd) });
+        item.width = width;
+        item.height = height;
+        true
+    }
+    fn fill_rect(dc: isize, rect: &Rect, color: u32) {
+        let brush = unsafe { CreateSolidBrush(color) };
+        if brush != 0 {
+            unsafe {
+                FillRect(dc, rect, brush);
+                DeleteObject(brush);
+            }
+        }
+    }
+    fn draw_popup_item(hwnd: isize, lp: isize) -> bool {
+        if lp == 0 {
+            return false;
+        }
+        let item = unsafe { &mut *(lp as *mut DrawItem) };
+        if item.control_type != 1 {
+            return false;
+        }
+        let theme = POPUP_THEME.with(Cell::get);
+        let dpi = unsafe { GetDpiForWindow(hwnd) };
+        fill_rect(item.dc, &item.rect, theme.background);
+        let content = popup_content_rect(item.item_id, item.rect, dpi);
+        if item.item_id == 0 {
+            let height = dip(1, dpi);
+            let top = (content.top + content.bottom - height) / 2;
+            fill_rect(
+                item.dc,
+                &Rect {
+                    left: content.left + dip(12, dpi),
+                    top,
+                    right: content.right - dip(12, dpi),
+                    bottom: top + height,
+                },
+                theme.separator,
+            );
+            return true;
+        }
+        if item.state & 1 != 0 {
+            let radius = dip(4, dpi);
+            let region = unsafe {
+                CreateRoundRectRgn(
+                    content.left + dip(4, dpi),
+                    content.top,
+                    content.right - dip(4, dpi),
+                    content.bottom,
+                    radius * 2,
+                    radius * 2,
+                )
+            };
+            let brush = unsafe { CreateSolidBrush(theme.hover) };
+            if region != 0 && brush != 0 {
+                unsafe {
+                    FillRgn(item.dc, region, brush);
+                }
+            }
+            unsafe {
+                DeleteObject(region);
+                DeleteObject(brush);
+            }
+        }
+        let text = match item.item_id {
+            1 => "打开 Catch",
+            2 => "退出",
+            _ => return true,
+        };
+        let face = wide("Microsoft YaHei UI");
+        let font = unsafe {
+            CreateFontW(
+                -dip(14, dpi),
+                0,
+                0,
+                0,
+                400,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                5,
+                0,
+                face.as_ptr(),
+            )
+        };
+        let old = if font != 0 {
+            unsafe { SelectObject(item.dc, font) }
+        } else {
+            0
+        };
+        let mut text_rect = Rect {
+            left: content.left + dip(16, dpi),
+            top: content.top,
+            right: content.right - dip(16, dpi),
+            bottom: content.bottom,
+        };
+        unsafe {
+            let old_background_mode = SetBkMode(item.dc, 1);
+            let old_text_color = SetTextColor(item.dc, theme.text);
+            DrawTextW(
+                item.dc,
+                wide(text).as_ptr(),
+                -1,
+                &mut text_rect,
+                0x0004 | 0x0020 | 0x0800,
+            );
+            if old_background_mode != 0 {
+                SetBkMode(item.dc, old_background_mode);
+            }
+            if old_text_color != u32::MAX {
+                SetTextColor(item.dc, old_text_color);
+            }
+            if font != 0 {
+                SelectObject(item.dc, old);
+                DeleteObject(font);
+            }
+        }
+        true
+    }
+    unsafe extern "system" fn popup_menu_hook(code: i32, wp: usize, lp: isize) -> isize {
+        if code >= 0 && lp != 0 {
+            let message = unsafe { &*(lp as *const CallWndProc) };
+            if message.message == 0x0047 {
+                let mut class = [0_u16; 7];
+                let length = unsafe { GetClassNameW(message.hwnd, class.as_mut_ptr(), 7) };
+                if length == 6 && class[..6] == [35, 51, 50, 55, 54, 56] {
+                    let mut rect = Rect::default();
+                    unsafe {
+                        GetWindowRect(message.hwnd, &mut rect);
+                    }
+                    let width = rect.right - rect.left;
+                    let height = rect.bottom - rect.top;
+                    let key = (message.hwnd, width, height);
+                    if width > 0 && height > 0 && POPUP_REGION.with(Cell::get) != key {
+                        POPUP_REGION.with(|region| region.set(key));
+                        let radius = dip(8, unsafe { GetDpiForWindow(message.hwnd) });
+                        let region = unsafe {
+                            CreateRoundRectRgn(0, 0, width, height, radius * 2, radius * 2)
+                        };
+                        if region != 0 && unsafe { SetWindowRgn(message.hwnd, region, 1) } == 0 {
+                            unsafe {
+                                DeleteObject(region);
+                            }
+                        }
+                        allow_dark_mode_for_window(message.hwnd, POPUP_THEME.with(Cell::get).dark);
+                    }
+                }
+            }
+        }
+        unsafe { CallNextHookEx(0, code, wp, lp) }
+    }
+    fn set_popup_item_type(menu: isize, position: u32, item_type: u32) -> bool {
+        let info = MenuItemInfo {
+            size: std::mem::size_of::<MenuItemInfo>() as u32,
+            mask: 0x0100,
+            item_type,
+            state: 0,
+            id: 0,
+            submenu: 0,
+            checked: 0,
+            unchecked: 0,
+            data: 0,
+            text: std::ptr::null_mut(),
+            length: 0,
+            bitmap: 0,
+        };
+        unsafe { SetMenuItemInfoW(menu, position, 1, &info) != 0 }
+    }
+    fn show_popup_menu(hwnd: isize, cursor: Point) -> i32 {
+        let menu = unsafe { CreatePopupMenu() };
+        if menu == 0 {
+            return 0;
+        }
+        let theme = popup_theme();
+        let mut background = 0;
+        let mut hook = 0;
+        unsafe {
+            let appended = AppendMenuW(menu, 0, 1, wide("打开 Catch").as_ptr()) != 0
+                && AppendMenuW(menu, 0x0800, 0, std::ptr::null()) != 0
+                && AppendMenuW(menu, 0, 2, wide("退出").as_ptr()) != 0;
+            if !appended {
+                DestroyMenu(menu);
+                return 0;
+            }
+            if let Some(theme) = theme.filter(|_| {
+                // Change only the drawing type. Keep the menu strings for accessibility.
+                if set_popup_item_type(menu, 0, 0x0100)
+                    && set_popup_item_type(menu, 1, 0x0100 | 0x0800)
+                    && set_popup_item_type(menu, 2, 0x0100)
+                {
+                    true
+                } else {
+                    for (position, item_type) in [(0, 0), (1, 0x0800), (2, 0)] {
+                        set_popup_item_type(menu, position, item_type);
+                    }
+                    false
+                }
+            }) {
+                POPUP_THEME.with(|current| current.set(theme));
+                POPUP_REGION.with(|region| region.set((0, 0, 0)));
+                background = CreateSolidBrush(theme.background);
+                SetMenuInfo(
+                    menu,
+                    &MenuInfo {
+                        size: std::mem::size_of::<MenuInfo>() as u32,
+                        mask: 0x0002,
+                        style: 0,
+                        max_height: 0,
+                        background,
+                        context_help: 0,
+                        data: 0,
+                    },
+                );
+                hook = SetWindowsHookExW(4, Some(popup_menu_hook), 0, GetCurrentThreadId());
+            }
+            SetForegroundWindow(hwnd);
+        }
+        let selected = unsafe {
+            TrackPopupMenu(
+                menu,
+                0x0100 | 0x0080,
+                cursor.x,
+                cursor.y,
+                0,
+                hwnd,
+                std::ptr::null(),
+            )
+        };
+        unsafe {
+            if hook != 0 {
+                UnhookWindowsHookEx(hook);
+            }
+            POPUP_REGION.with(|region| region.set((0, 0, 0)));
+            DestroyMenu(menu);
+            if background != 0 {
+                DeleteObject(background);
+            }
+        }
+        selected
     }
     struct Image {
         width: usize,
@@ -552,6 +1036,8 @@ mod windows {
                     return crate::accessibility::result(hwnd, wp, lp, provider);
                 }
             }
+            0x002c if measure_popup_item(hwnd, lp) => return 1,
+            0x002b if draw_popup_item(hwnd, lp) => return 1,
             // Keep the standard window/caption accessibility semantics while
             // giving the layered surface the full client area, without chrome.
             0x0083 | 0x0085 => return 0,
@@ -686,27 +1172,7 @@ mod windows {
                 unsafe {
                     GetCursorPos(&mut cursor);
                 }
-                let menu = unsafe { CreatePopupMenu() };
-                unsafe {
-                    AppendMenuW(menu, 0, 1, wide("打开 Catch").as_ptr());
-                    AppendMenuW(menu, 0x0800, 0, std::ptr::null());
-                    AppendMenuW(menu, 0, 2, wide("退出").as_ptr());
-                    SetForegroundWindow(hwnd);
-                }
-                let selected = unsafe {
-                    TrackPopupMenu(
-                        menu,
-                        0x0100 | 0x0080,
-                        cursor.x,
-                        cursor.y,
-                        0,
-                        hwnd,
-                        std::ptr::null(),
-                    )
-                };
-                unsafe {
-                    DestroyMenu(menu);
-                }
+                let selected = show_popup_menu(hwnd, cursor);
                 if selected == 1 {
                     crate::expand(&app);
                 } else if selected == 2 {
@@ -935,6 +1401,71 @@ mod windows {
                 assert!((190..240).contains(&pixels[center + 3]));
                 assert_eq!(pixels[3], 1);
             }
+        }
+
+        #[test]
+        fn popup_metrics_scale_and_preserve_outer_padding() {
+            assert_eq!(popup_metrics(1, 96), (144, 36));
+            assert_eq!(popup_metrics(0, 96), (144, 9));
+            assert_eq!(popup_metrics(1, 192), (288, 72));
+            assert_eq!(dip(14, 144), 21);
+            let rect = Rect {
+                left: 0,
+                top: 0,
+                right: 144,
+                bottom: 36,
+            };
+            assert_eq!(popup_content_rect(1, rect, 96).top, 4);
+            assert_eq!(popup_content_rect(2, rect, 96).bottom, 32);
+        }
+
+        #[test]
+        fn popup_theme_blending_preserves_color_channels() {
+            let background = rgb(249, 250, 251);
+            let text = rgb(1, 2, 3);
+            assert_eq!(mix(background, text, 0), background);
+            assert_eq!(mix(background, text, 100), text);
+            assert_ne!(mix(background, text, 6), background);
+        }
+
+        #[test]
+        fn popup_owner_draw_retains_system_menu_labels() {
+            let menu = unsafe { CreatePopupMenu() };
+            assert_ne!(menu, 0);
+            let label = wide("打开 Catch");
+            let appended = unsafe { AppendMenuW(menu, 0, 1, label.as_ptr()) } != 0;
+            let styled = set_popup_item_type(menu, 0, 0x0100);
+            let mut text = [0_u16; 32];
+            let mut info = MenuItemInfo {
+                size: std::mem::size_of::<MenuItemInfo>() as u32,
+                mask: 0x0040 | 0x0100,
+                item_type: 0,
+                state: 0,
+                id: 0,
+                submenu: 0,
+                checked: 0,
+                unchecked: 0,
+                data: 0,
+                text: text.as_mut_ptr(),
+                length: text.len() as u32,
+                bitmap: 0,
+            };
+            let read = unsafe { GetMenuItemInfoW(menu, 0, 1, &mut info) } != 0;
+            unsafe { DestroyMenu(menu) };
+            assert!(appended && styled && read);
+            assert_eq!(info.item_type, 0x0100);
+            assert_eq!(text[..info.length as usize], label[..label.len() - 1]);
+        }
+
+        #[cfg(target_pointer_width = "64")]
+        #[test]
+        fn popup_win32_layouts_match_x64_abi() {
+            assert_eq!(std::mem::size_of::<MeasureItem>(), 32);
+            assert_eq!(std::mem::size_of::<DrawItem>(), 64);
+            assert_eq!(std::mem::size_of::<MenuInfo>(), 40);
+            assert_eq!(std::mem::size_of::<MenuItemInfo>(), 80);
+            assert_eq!(std::mem::size_of::<HighContrast>(), 16);
+            assert_eq!(std::mem::size_of::<CallWndProc>(), 32);
         }
 
         #[test]

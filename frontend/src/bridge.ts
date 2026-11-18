@@ -1,7 +1,16 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { Boot, Group, Owner, Preferences, Reply, ResourceKind, UiState } from './models';
+import type {
+  Boot,
+  Group,
+  IpcRequest,
+  Owner,
+  Preferences,
+  Reply,
+  ResourceKind,
+  UiState,
+} from './models';
 export const host = {
   previewLegacy: (generation: number) =>
     invoke<{
@@ -24,18 +33,17 @@ export const host = {
     command: Record<string, unknown>,
     expectedRevision: number,
     expectedTodosRevision?: number,
-  ) =>
-    invoke<Reply>('execute', {
-      generation,
-      request: {
-        requestId: crypto.randomUUID(),
-        expectedRevision,
-        operation: {
-          group,
-          command: group === 'recurrence' ? { command, expectedTodosRevision } : command,
-        },
+  ) => {
+    const request: IpcRequest = {
+      requestId: crypto.randomUUID(),
+      expectedRevision,
+      operation: {
+        group,
+        command: group === 'recurrence' ? { command, expectedTodosRevision } : command,
       },
-    }),
+    };
+    return invoke<Reply>('execute', { generation, request });
+  },
   stash: (generation: number, ui: UiState) => invoke('stash_ui', { generation, ui }),
   collapse: (generation: number, ui: UiState) => invoke('collapse', { generation, ui }),
   painted: (generation: number) => invoke('view_painted', { generation }),

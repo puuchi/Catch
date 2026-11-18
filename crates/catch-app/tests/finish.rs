@@ -65,6 +65,36 @@ fn plain_finish_payload_defaults_optional_fields_and_complete_flag() {
     assert!(payload.progress.is_none());
     assert_eq!(payload.expected_todos_revision, 4);
 }
+
+#[test]
+fn a_real_legacy_finish_receipt_migrates_and_replays_its_original_snapshot() {
+    let (_dir, disk, mut service) = fixture(true);
+    let finish = request(&service, "legacy-finish", true);
+    let result = service
+        .execute(finish.clone(), context("unused", 1000))
+        .unwrap();
+    let original = serde_json::to_vec(&serde_json::json!([{
+        "request_id": finish.request_id,
+        "fingerprint": serde_json::to_vec(&finish).unwrap(),
+        "response": serde_json::to_vec(&result).unwrap()
+    }]))
+    .unwrap();
+    drop(service);
+    disk.write_atomic("catch-finish-receipts.json", &original)
+        .unwrap();
+    let mut restarted = Service::open(disk.clone(), context("restart", 2000)).unwrap();
+    let replay = restarted.execute(finish, context("unused", 3000)).unwrap();
+    assert_eq!(
+        serde_json::to_value(replay).unwrap(),
+        serde_json::to_value(result).unwrap()
+    );
+    assert_eq!(
+        disk.read("catch-finish-receipts.json.bak")
+            .unwrap()
+            .unwrap(),
+        original
+    );
+}
 #[test]
 fn finish_commits_draft_end_and_todo_and_replays_exactly_after_restart() {
     let (_dir, disk, mut service) = fixture(true);
@@ -104,6 +134,16 @@ fn finish_commits_draft_end_and_todo_and_replays_exactly_after_restart() {
         expected
     );
     let mut collision = finish;
+    let current = restarted.snapshot();
+    let replay = restarted
+        .execute(collision.clone(), context("unused", 4000))
+        .unwrap();
+    let reply = catch_app::Reply::from_result(Ok(replay), current.clone());
+    assert_eq!(reply.state.todos.revision, current.todos.revision);
+    assert_eq!(
+        serde_json::to_value(reply.state).unwrap(),
+        serde_json::to_value(current).unwrap()
+    );
     if let UserCommand::Finish(ref mut operation) = collision.operation {
         operation.complete_todo = false;
     }
@@ -357,4 +397,136 @@ fn unresolved_partial_finish_blocks_all_writes_and_restart_recovers_and_replays(
     );
     assert!(!recovered.snapshot().storage_blocked);
     assert!(disk.read("catch-finish-pending.json").unwrap().is_none());
+}
+
+#[test]
+fn many_finishes_keep_recent_exact_replays_and_reject_compacted_requests_after_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let disk = Arc::new(FileDisk::new(dir.path()).unwrap());
+    let mut service = Service::open(disk.clone(), context("startup", 0)).unwrap();
+    let mut first = None;
+    let mut last = None;
+    for index in 0..40 {
+        let id = format!("matter-{index}");
+        service
+            .execute(
+                Request {
+                    request_id: format!("start-{index}"),
+                    expected_revision: service.snapshot().tracking.revision,
+                    operation: UserCommand::Tracking(tracking::Command::Start {
+                        name: id.clone(),
+                        todo_id: None,
+                        resources: vec![],
+                    }),
+                },
+                context(&id, index * 2000),
+            )
+            .unwrap();
+        let finish = Request {
+            request_id: format!("finish-{index}"),
+            expected_revision: service.snapshot().tracking.revision,
+            operation: UserCommand::Finish(FinishRequest {
+                activity_id: id,
+                session_id: None,
+                progress: None,
+                complete_todo: false,
+                expected_todos_revision: 0,
+            }),
+        };
+        let result = service
+            .execute(finish.clone(), context("unused", index * 2000 + 1000))
+            .unwrap();
+        if index == 0 {
+            first = Some(finish.clone());
+        }
+        last = Some((finish, serde_json::to_value(result).unwrap()));
+    }
+    let first = first.unwrap();
+    let (last, expected) = last.unwrap();
+    let before = serde_json::to_value(service.snapshot()).unwrap();
+    let error = service
+        .execute(first.clone(), context("unused", 90000))
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::Conflict);
+    assert!(error.message.contains("历史响应已压缩"));
+    assert_eq!(serde_json::to_value(service.snapshot()).unwrap(), before);
+    let mut restarted = Service::open(disk, context("restart", 90000)).unwrap();
+    assert_eq!(
+        restarted
+            .execute(first.clone(), context("unused", 90000))
+            .unwrap_err()
+            .code,
+        ErrorCode::Conflict
+    );
+    let mut collision = first;
+    if let UserCommand::Finish(ref mut operation) = collision.operation {
+        operation.progress = Some("不同参数".into());
+    }
+    let error = restarted
+        .execute(collision, context("unused", 90000))
+        .unwrap_err();
+    assert!(error.message.contains("其他操作"));
+    assert_eq!(
+        serde_json::to_value(restarted.execute(last, context("unused", 90000)).unwrap()).unwrap(),
+        expected
+    );
+    assert_eq!(restarted.snapshot().tracking.activities.len(), 40);
+}
+
+struct CountReceiptReads {
+    inner: FileDisk,
+    reads: std::sync::atomic::AtomicUsize,
+}
+impl Disk for CountReceiptReads {
+    fn read(&self, name: &str) -> catch_storage::Result<Option<Vec<u8>>> {
+        if name == "catch-finish-receipts.json" {
+            self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+        self.inner.read(name)
+    }
+    fn write_atomic(&self, name: &str, bytes: &[u8]) -> catch_storage::Result<()> {
+        self.inner.write_atomic(name, bytes)
+    }
+    fn remove(&self, name: &str) -> catch_storage::Result<()> {
+        self.inner.remove(name)
+    }
+}
+#[test]
+fn ordinary_commands_and_exact_replays_do_not_read_the_receipt_file() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let dir = tempfile::tempdir().unwrap();
+    let disk = Arc::new(CountReceiptReads {
+        inner: FileDisk::new(dir.path()).unwrap(),
+        reads: AtomicUsize::new(0),
+    });
+    let mut service = Service::open(disk.clone(), context("startup", 0)).unwrap();
+    start(&mut service, false);
+    let finish = request(&service, "finish", false);
+    let result = service
+        .execute(finish.clone(), context("unused", 1000))
+        .unwrap();
+    disk.reads.store(0, Ordering::SeqCst);
+    for index in 0..50 {
+        service
+            .execute(
+                Request {
+                    request_id: format!("goal-{index}"),
+                    expected_revision: service.snapshot().growth.revision,
+                    operation: UserCommand::Growth(catch_core::growth::Command::SetGoal {
+                        minutes: Some(index + 1),
+                    }),
+                },
+                context("unused", 2000),
+            )
+            .unwrap();
+    }
+    let replay = service.execute(finish, context("unused", 3000)).unwrap();
+    assert_eq!(
+        serde_json::to_value(&replay).unwrap(),
+        serde_json::to_value(result).unwrap()
+    );
+    let reply = catch_app::Reply::from_result(Ok(replay), service.snapshot());
+    assert!(reply.ok);
+    assert_eq!(reply.state.growth.goal_minutes, Some(50));
+    assert_eq!(disk.reads.load(Ordering::SeqCst), 0);
 }

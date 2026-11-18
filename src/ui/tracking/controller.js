@@ -211,7 +211,7 @@ module.exports = function mount(api) {
 
   function visibleGaps(now) {
     return untrackedGaps(state.activities,dateInput.value,now)
-      .filter(gap => Date.parse(gap.endTime)-Date.parse(gap.startTime)>=10000)
+      .filter(gap => Date.parse(gap.endTime)-Date.parse(gap.startTime)>=30000)
   }
 
   function timeLabel(time, selectedDay) {

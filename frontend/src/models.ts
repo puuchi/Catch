@@ -206,10 +206,23 @@ export interface Boot {
   isolated: boolean;
 }
 export type Group = 'tracking' | 'finish' | 'todos' | 'growth' | 'resources' | 'recurrence';
+export interface FinishRequest {
+  activityId: string;
+  sessionId?: string | null;
+  progress?: string | null;
+  completeTodo?: boolean;
+  expectedTodosRevision: number;
+}
+export interface IpcRequest<Command = Record<string, unknown>> {
+  requestId: string;
+  expectedRevision: number;
+  operation: { group: Group; command: Command };
+}
+export type ErrorCode = 'VALIDATION' | 'CONFLICT' | 'STORAGE_FAILURE';
 export interface Reply {
   ok: boolean;
   state: Snapshot;
   growth?: GrowthView;
   now?: number;
-  error?: { code: string; message: string };
+  error?: { code: ErrorCode; message: string };
 }

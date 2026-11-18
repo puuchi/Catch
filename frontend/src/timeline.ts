@@ -45,7 +45,7 @@ export function timelineRows(items: Matter[], date: string, now: number): Timeli
   }));
   rows.push(
     ...gaps(items, date, now)
-      .filter((gap) => gap.end - gap.start >= 10_000)
+      .filter((gap) => gap.end - gap.start >= 30_000)
       .map((gap): GapRow => ({ kind: 'gap', key: `gap:${gap.start}:${gap.end}`, ...gap })),
   );
   const direction = date === day(now) ? -1 : 1;

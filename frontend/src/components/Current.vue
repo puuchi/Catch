@@ -16,7 +16,7 @@ import {
   statusText,
   time,
 } from '../display';
-import type { Matter, Session } from '../models';
+import type { FinishRequest, Matter, Session } from '../models';
 import { useScroll } from '../scroll';
 const scroll = ref<HTMLElement>();
 const saveScroll = useScroll(scroll, () => 'current');
@@ -170,12 +170,13 @@ async function finish(matter: Matter, completeTodo: boolean) {
     if (matter.id !== current.value?.id) await persistProgress();
     const session = matter.sessions.at(-1);
     const saved = session ? ui.progressDrafts[session.id] : undefined;
+    const payload: Omit<FinishRequest, 'expectedTodosRevision'> = {
+      activityId: matter.id,
+      completeTodo,
+      ...(session && saved !== undefined ? { sessionId: session.id, progress: saved } : {}),
+    };
     try {
-      await dispatch('finish', 'finish', {
-        activityId: matter.id,
-        completeTodo,
-        ...(session && saved !== undefined ? { sessionId: session.id, progress: saved } : {}),
-      });
+      await dispatch('finish', 'finish', payload);
     } catch (error) {
       finishError.value = (error as Error).message;
       throw error;

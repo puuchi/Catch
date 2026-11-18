@@ -36,11 +36,11 @@ function matter(id: string, sessions: Session[]): Matter {
     pauseReason: null,
   };
 }
-test('timeline interleaves gaps in the same date order, hiding only gaps below ten seconds', () => {
+test('timeline interleaves gaps in the same date order, hiding only gaps below thirty seconds', () => {
   const items = [
     matter('A', [session('a', iso(date, '09:00:00'), iso(date, '09:10:00'))]),
-    matter('B', [session('b', iso(date, '09:10:09'), iso(date, '09:20:00'))]),
-    matter('C', [session('c', iso(date, '09:20:10'), iso(date, '09:30:00'))]),
+    matter('B', [session('b', iso(date, '09:10:29'), iso(date, '09:20:00'))]),
+    matter('C', [session('c', iso(date, '09:20:30'), iso(date, '09:30:00'))]),
   ];
   const pastRows = timelineRows(items, date, now + 86_400_000);
   assert.deepEqual(
@@ -50,7 +50,7 @@ test('timeline interleaves gaps in the same date order, hiding only gaps below t
   assert.equal(
     pastRows.find((row) => row.kind === 'gap')!.end -
       pastRows.find((row) => row.kind === 'gap')!.start,
-    10_000,
+    30_000,
   );
   const today = timelineRows(items, date, now);
   assert.deepEqual(

@@ -178,7 +178,7 @@ fn execute(
     state: State<Runtime>,
     generation: u64,
     request: Request,
-) -> Result<Value, String> {
+) -> Result<catch_app::Reply, String> {
     let mut desktop = state.lock().map_err(|_| "状态锁失败")?;
     ensure(&window, &desktop, generation)?;
     let now = clock::now();
@@ -192,19 +192,14 @@ fn execute(
             new_id: &id,
         },
     );
-    let (snapshot, error) = match result {
-        Ok(snapshot) => (snapshot, None),
-        Err(error) => (desktop.service.snapshot(), Some(error)),
-    };
-    let growth = growth_view(&desktop, now)?;
+    let mut reply = catch_app::Reply::from_result(result, desktop.service.snapshot());
+    reply.growth = Some(growth_view(&desktop, now)?);
+    reply.now = Some(now);
     // The caller receives this authoritative snapshot in the command reply.
     // Only independently initiated changes need a separate state event.
     drop(desktop);
     native::redraw(&app);
-    Ok(match error {
-        None => json!({"ok":true,"state":snapshot,"growth":growth,"now":now}),
-        Some(error) => json!({"ok":false,"state":snapshot,"error":error,"growth":growth,"now":now}),
-    })
+    Ok(reply)
 }
 #[tauri::command]
 fn stash_ui(
