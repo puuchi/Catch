@@ -62,7 +62,12 @@ async function action(group: 'todos' | 'tracking', type: string, id: string) {
 <template>
   <section class="module-page recycle-page" aria-label="回收站">
     <header class="archive-heading">
-      <button class="icon-button" aria-label="返回" title="返回" @click="ui.page = ui.previousPage">
+      <button
+        class="icon-button"
+        aria-label="返回"
+        v-tooltip="'返回'"
+        @click="ui.page = ui.previousPage"
+      >
         <Icon name="back" /></button
       ><strong>回收站</strong>
       <span id="trash-filter-tools" class="history-heading-tools" />

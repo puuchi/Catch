@@ -57,7 +57,7 @@ async function close() {
       <button
         type="button"
         :aria-label="`选择${label}`"
-        :title="`选择${label}`"
+        v-tooltip="`选择${label}`"
         @click="opened = true"
       >
         <Icon name="calendar" />
@@ -121,11 +121,5 @@ async function close() {
   border-radius: 7px;
   background: transparent;
   color: var(--text);
-}
-.date-error {
-  display: block;
-  font-size: 9px;
-  color: #a64c37;
-  margin-top: 3px;
 }
 </style>

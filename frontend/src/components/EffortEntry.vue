@@ -72,7 +72,7 @@ function key(event: KeyboardEvent) {
     <i class="effort-bar" aria-hidden="true" />
     <div class="effort-content">
       <div class="effort-heading">
-        <span class="effort-name" :title="entry.matter.name"
+        <span class="effort-name" v-tooltip="entry.matter.name"
           ><span v-if="isContinuation(entry)" class="effort-return" aria-label="再次投入">↩</span
           >{{ entry.matter.name }}</span
         >
@@ -83,7 +83,7 @@ function key(event: KeyboardEvent) {
         <button
           class="icon-button effort-menu"
           :aria-label="`投入操作：${entry.matter.name}`"
-          title="投入操作"
+          v-tooltip="'投入操作'"
           aria-haspopup="menu"
           @click.stop="emit('menu', $event)"
           @dblclick.stop

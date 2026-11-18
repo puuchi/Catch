@@ -83,7 +83,7 @@ async function setGoal(enabled = true) {
         <button
           type="button"
           class="icon-button"
-          :title="browsing ? '返回今日成长' : '查看植物'"
+          v-tooltip="browsing ? '返回今日成长' : '查看植物'"
           :aria-label="browsing ? '返回今日成长' : '查看植物'"
           :aria-pressed="browsing"
           @click="browsePlants"
@@ -103,6 +103,7 @@ async function setGoal(enabled = true) {
             :key="plant.id"
             :class="{ selected: catalogPlant === plant.id }"
             :aria-pressed="catalogPlant === plant.id"
+            v-tooltip="`查看${plant.name}`"
             :aria-label="`查看${plant.name}`"
             @click="catalogPlant = plant.id"
           >
@@ -191,6 +192,7 @@ async function setGoal(enabled = true) {
         <form
           v-if="state?.growth.goalMinutes !== null"
           class="goal-input"
+          novalidate
           @submit.prevent="setGoal()"
         >
           <input

@@ -59,7 +59,7 @@ async function commit() {
         {{ preview ? '重新选择文件夹' : '选择文件夹' }}
       </button>
       <template v-if="preview">
-        <p class="muted small import-directory" :title="preview.directory">
+        <p class="muted small import-directory" v-tooltip="preview.directory">
           {{ preview.directory }}
         </p>
         <p>{{ preview.summary.matters }} 件事项 · {{ preview.summary.sessions }} 次投入</p>

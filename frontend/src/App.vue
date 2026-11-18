@@ -219,16 +219,16 @@ document.addEventListener('pointerdown', outside);
         class="btn-pin"
         :class="{ active: preferences.pinned }"
         :aria-pressed="preferences.pinned"
-        title="置顶"
+        v-tooltip="'置顶'"
         aria-label="固定置顶"
         @pointerdown.stop
         @click="pin"
       >
         <Icon name="pin" /></button
-      ><button title="最小化" aria-label="最小化" @pointerdown.stop @click="host.minimize()">
+      ><button v-tooltip="'最小化'" aria-label="最小化" @pointerdown.stop @click="host.minimize()">
         <Icon name="minus" /></button
       ><button
-        title="收起"
+        v-tooltip="'收起'"
         aria-label="收起"
         :disabled="!ready"
         @pointerdown.stop
@@ -254,7 +254,7 @@ document.addEventListener('pointerdown', outside);
     v-if="growth"
     class="growth-strip"
     :class="{ celebrating }"
-    :title="growth.selected ? '查看今日成长' : '选择今天的植物'"
+    v-tooltip="growth.selected ? '查看今日成长' : '选择今天的植物'"
     :aria-expanded="!!ui.growthOpen"
     aria-controls="growthPanel"
     @click="toggleGrowth"
@@ -272,7 +272,14 @@ document.addEventListener('pointerdown', outside);
   <div v-if="message || state?.storageBlocked" class="activity-message" role="status">
     <span>{{
       message || (state?.storageBlocked ? '保存状态需要检查，请保留文件并重启。' : '')
-    }}</span><button v-if="message" aria-label="关闭提示" @click="message = ''">×</button>
+    }}</span><button
+      v-if="message"
+      v-tooltip="'关闭提示'"
+      aria-label="关闭提示"
+      @click="message = ''"
+    >
+      ×
+    </button>
   </div>
   <main v-if="ready" class="app-content">
     <Todos v-if="ui.page === 'todos'" /><Current v-else-if="ui.page === 'current'" /><Timeline
@@ -286,14 +293,14 @@ document.addEventListener('pointerdown', outside);
     <div class="app-tools-left">
       <button
         id="btnAppearance"
-        title="外观"
+        v-tooltip="'外观'"
         aria-label="外观设置"
         :aria-expanded="ui.settingsOpen"
         @click="toggleAppearance"
       >
         <Icon name="sliders" /></button
       ><button
-        title="回收站"
+        v-tooltip="'回收站'"
         aria-label="打开回收站"
         :aria-pressed="ui.page === 'trash'"
         @click="
@@ -306,7 +313,7 @@ document.addEventListener('pointerdown', outside);
       </button>
       <button
         v-if="ui.page === 'todos'"
-        :title="ui.page === 'todos' && ui.history ? '返回待办' : '归档'"
+        v-tooltip="ui.page === 'todos' && ui.history ? '返回待办' : '归档'"
         :aria-label="ui.page === 'todos' && ui.history ? '返回待办' : '归档'"
         :aria-pressed="ui.page === 'todos' && ui.history"
         @click="toggleArchive"
@@ -315,7 +322,7 @@ document.addEventListener('pointerdown', outside);
       </button>
     </div>
     <div id="timeline-tools" class="timeline-footer-tools" aria-label="时间轴工具" />
-    <span v-if="isolated" class="local-preview" title="使用独立预览数据，不会修改原版记录"
+    <span v-if="isolated" class="local-preview" v-tooltip="'使用独立预览数据，不会修改原版记录'"
       >本地预览</span
     ><button @click="quit"><Icon name="power" />退出</button>
   </footer>

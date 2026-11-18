@@ -251,7 +251,7 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
       <button
         type="button"
         class="icon-button"
-        title="返回待办"
+        v-tooltip="'返回待办'"
         aria-label="返回待办"
         @click="ui.history = false"
       >
@@ -304,7 +304,7 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
           <button
             class="icon-button"
             type="button"
-            title="紧急"
+            v-tooltip="'紧急'"
             aria-label="紧急"
             :aria-pressed="ui.composer.urgent"
             :class="{ active: ui.composer.urgent }"
@@ -314,7 +314,7 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
           ><DatePicker v-model="ui.composer.deadline" /><button
             type="button"
             class="repeat-option icon-button"
-            :title="ui.composerSchedule ? '修改重复' : '重复'"
+            v-tooltip="ui.composerSchedule ? '修改重复' : '重复'"
             aria-label="重复"
             :aria-pressed="!!ui.composerSchedule"
             :class="{ active: ui.composerSchedule }"
@@ -324,7 +324,7 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
           ><button
             type="button"
             class="icon-button"
-            title="添加资料"
+            v-tooltip="'添加资料'"
             aria-label="添加资料"
             :aria-expanded="addingResources"
             :class="{ active: ui.composerResources?.length }"
@@ -351,14 +351,14 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
         </div>
         <div v-if="ui.composerResources?.length" class="composer-resource-list">
           <div v-for="resource in ui.composerResources" :key="resource.id" class="resource-row">
-            <span class="composer-resource-name" :title="resource.target"
+            <span class="composer-resource-name" v-tooltip="resource.target"
               ><Icon :name="resource.kind === 'web' ? 'link' : resource.kind" />{{
                 resource.title
               }}</span
             ><button
               type="button"
               class="icon-button"
-              title="移除"
+              v-tooltip="'移除'"
               :aria-label="`移除${resource.title}`"
               :disabled="!!busy"
               @click="
@@ -411,7 +411,7 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
             <button
               v-if="!ui.history"
               class="icon-button archive-completed"
-              title="归档已完成"
+              v-tooltip="'归档已完成'"
               aria-label="归档已完成"
               :disabled="!!busy"
               @click="action('archive', {})"
@@ -481,7 +481,7 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
                   ><button
                     v-if="todo.recurrence"
                     class="repeat-mark quiet-button"
-                    :title="activeRepeat(todo) ? '重复规则' : '已停止重复'"
+                    v-tooltip="activeRepeat(todo) ? '重复规则' : '已停止重复'"
                     :disabled="!activeRepeat(todo)"
                     @click="repeat(todo)"
                   >
@@ -505,7 +505,7 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
               >
               <button
                 class="icon-button"
-                title="恢复到待办"
+                v-tooltip="'恢复到待办'"
                 :aria-label="`恢复到待办：${todo.text}`"
                 :disabled="!!busy"
                 @click="restoreArchived(todo)"
@@ -519,14 +519,14 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
                 class="todo-start"
                 :disabled="!!busy"
                 :aria-label="`开始 ${todo.text}`"
-                title="开始投入"
+                v-tooltip="'开始投入'"
                 @click="start(todo)"
               >
                 <Icon name="play" /></button
               ><button
                 class="icon-button todo-menu-button"
                 :aria-label="`${todo.text}的操作`"
-                title="待办操作"
+                v-tooltip="'待办操作'"
                 aria-haspopup="menu"
                 :aria-expanded="menu?.todo.id === todo.id"
                 @click="showMenu($event, todo)"

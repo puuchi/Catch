@@ -58,6 +58,7 @@ onMounted(async () => {
       <span>{{ label }}</span><button
         type="button"
         class="icon-button"
+        v-tooltip="'关闭日历'"
         aria-label="关闭日历"
         @click="emit('close')"
       >
@@ -65,7 +66,13 @@ onMounted(async () => {
       </button>
     </header>
     <div class="calendar-month">
-      <button type="button" class="icon-button" aria-label="上个月" @click="move(-1)">
+      <button
+        type="button"
+        class="icon-button"
+        v-tooltip="'上个月'"
+        aria-label="上个月"
+        @click="move(-1)"
+      >
         <Icon name="back" />
       </button>
       <label
@@ -84,6 +91,7 @@ onMounted(async () => {
       <button
         type="button"
         class="icon-button calendar-forward"
+        v-tooltip="'下个月'"
         aria-label="下个月"
         @click="move(1)"
       >

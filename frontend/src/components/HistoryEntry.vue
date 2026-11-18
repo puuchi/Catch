@@ -31,7 +31,7 @@ const types = {
   >
     <span
       class="history-type-mark"
-      :title="types[kind].label"
+      v-tooltip="types[kind].label"
       :aria-label="types[kind].label"
       role="img"
       ><Icon :name="types[kind].icon"
@@ -41,21 +41,21 @@ const types = {
         v-if="expandable"
         class="history-entry-title"
         type="button"
-        :title="title"
+        v-tooltip="title"
         :aria-expanded="expanded"
         :aria-controls="id"
         @click="expanded = !expanded"
       >
         <span>{{ title }}</span>
       </button>
-      <span v-else class="history-entry-title history-entry-static" :title="title"
+      <span v-else class="history-entry-title history-entry-static" v-tooltip="title"
         ><span>{{ title }}</span></span
       >
     </h3>
     <div class="history-entry-actions">
       <button
         class="icon-button"
-        :title="kind === 'todo' && !removable ? '恢复到待办' : '恢复'"
+        v-tooltip="kind === 'todo' && !removable ? '恢复到待办' : '恢复'"
         :aria-label="`恢复：${title}`"
         :disabled="locked"
         @click="$emit('restore')"
@@ -65,7 +65,7 @@ const types = {
       <button
         v-if="removable"
         class="icon-button history-remove"
-        title="永久删除"
+        v-tooltip="'永久删除'"
         :aria-label="`永久删除：${title}`"
         :disabled="locked"
         @click="$emit('remove')"
@@ -74,7 +74,7 @@ const types = {
       </button>
     </div>
     <div class="history-entry-meta">
-      <time :datetime="date || undefined" :title="dateLabel">{{
+      <time :datetime="date || undefined" v-tooltip="dateLabel">{{
         historyDate(date).replaceAll('-', '/') || '日期未记录'
       }}</time><span v-if="detail">{{ detail }}</span>
     </div>

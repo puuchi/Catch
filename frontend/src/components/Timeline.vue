@@ -153,7 +153,7 @@ watch(activities, () => {
         <header class="details-heading">
           <button
             class="icon-button"
-            title="返回时间轴"
+            v-tooltip="'返回时间轴'"
             aria-label="返回时间轴"
             @click="ui.selectedMatterId = null"
           >
@@ -162,6 +162,7 @@ watch(activities, () => {
           <span class="spacer" />
           <button
             class="icon-button"
+            v-tooltip="'编辑事项'"
             aria-label="编辑事项"
             :disabled="!!busy"
             @click="editMatter(details.id)"
@@ -171,7 +172,7 @@ watch(activities, () => {
           <button
             class="icon-button"
             aria-label="补录一次投入"
-            title="补录一次投入"
+            v-tooltip="'补录一次投入'"
             :disabled="!!busy"
             @click="record(details.id)"
           >
@@ -179,6 +180,7 @@ watch(activities, () => {
           </button>
           <button
             class="icon-button"
+            v-tooltip="'删除整个事项'"
             aria-label="删除整个事项"
             :disabled="!!busy"
             @click="remove('remove', { id: details.id })"
@@ -226,23 +228,32 @@ watch(activities, () => {
         <aside v-if="focused && summary" class="timeline-focus-summary" aria-label="当日事项摘要">
           <div>
             <i class="status-dot" :style="{ background: focused.color }" />
-            <strong :title="focused.name">{{ focused.name }}</strong>
-            <button class="icon-button" title="取消聚焦" aria-label="取消聚焦" @click="clearFocus">
+            <strong v-tooltip="focused.name">{{ focused.name }}</strong>
+            <button
+              class="icon-button"
+              v-tooltip="'取消聚焦'"
+              aria-label="取消聚焦"
+              @click="clearFocus"
+            >
               <Icon name="close" />
             </button>
           </div>
           <p>当日 {{ summary.count }} 次投入 · 累计 {{ human(summary.duration) }}</p>
         </aside>
         <div v-else class="timeline-date-controls">
-          <button class="date-nav" aria-label="前一天" title="前一天" @click="move(-1)">‹</button>
+          <button class="date-nav" aria-label="前一天" v-tooltip="'前一天'" @click="move(-1)">
+            ‹
+          </button>
           <DateField v-model="ui.timelineDate" label="时间轴日期" />
-          <button class="date-nav" aria-label="后一天" title="后一天" @click="move(1)">›</button>
+          <button class="date-nav" aria-label="后一天" v-tooltip="'后一天'" @click="move(1)">
+            ›
+          </button>
           <button class="date-nav today-button" @click="ui.timelineDate = day(now)">今天</button>
         </div>
         <Teleport defer to="#timeline-tools">
           <button
             class="icon-button"
-            title="颜色说明"
+            v-tooltip="'颜色说明'"
             aria-label="颜色说明"
             :aria-expanded="legend"
             @click="legend = !legend"
@@ -251,7 +262,7 @@ watch(activities, () => {
           </button>
           <button
             class="icon-button"
-            title="补录"
+            v-tooltip="'补录'"
             aria-label="补录"
             :disabled="!!busy"
             @click="record()"

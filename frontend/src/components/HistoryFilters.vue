@@ -29,7 +29,7 @@ const options = [
       class="icon-button history-date-toggle"
       :class="{ active }"
       type="button"
-      :title="active ? `${dateLabel}筛选：${range}（${count}条）` : '日期筛选'"
+      v-tooltip="active ? `${dateLabel}筛选：${range}（${count}条）` : '日期筛选'"
       aria-label="日期筛选"
       :aria-expanded="expanded"
       :aria-controls="id"
@@ -41,7 +41,7 @@ const options = [
       v-if="active"
       class="icon-button"
       type="button"
-      title="清除日期筛选"
+      v-tooltip="'清除日期筛选'"
       aria-label="清除日期筛选"
       @click="
         from = '';
@@ -76,7 +76,7 @@ const options = [
         <span aria-hidden="true">—</span>
         <DateField v-model="to" :label="`${dateLabel}截止`" placeholder="截止日期" />
       </div>
-      <p v-if="from && to && from > to" class="history-filter-error" role="alert">
+      <p v-if="from && to && from > to" class="editor-error" role="alert">
         起始日期不能晚于截止日期
       </p>
       <div class="history-date-actions">
@@ -160,10 +160,8 @@ const options = [
   width: 12px;
   height: 12px;
 }
-.history-filter-error {
-  font-size: 9px;
+.history-date-panel .editor-error {
   margin-top: 5px;
-  color: #a64c37;
 }
 .history-date-actions {
   display: flex;

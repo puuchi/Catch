@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import Modal from './Modal.vue';
+import DateField from './DateField.vue';
 import { busy, dispatch, state, ui } from '../store';
 import type { Schedule } from '../models';
 const error = ref('');
@@ -119,12 +120,11 @@ async function stop() {
             日</label
           >
           <p class="muted small">不足该日期时，取当月最后一天</p></template
-        ><label v-if="ui.repeatDraft.mode !== 'template'" class="stack-field"
-          >从这一天开始<input
-            v-model="ui.repeatDraft.startsOn"
-            type="date"
-            aria-label="周期开始日期"
-        /></label>
+        >
+        <div v-if="ui.repeatDraft.mode !== 'template'" class="stack-field">
+          <span>从这一天开始</span>
+          <DateField v-model="ui.repeatDraft.startsOn" label="周期开始日期" :clearable="false" />
+        </div>
         <p v-if="error" role="alert" class="editor-error">{{ error }}</p>
         <button
           v-if="ui.repeatDraft.mode !== 'convert'"

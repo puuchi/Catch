@@ -231,7 +231,7 @@ function today() {
           <button
             v-if="current.status === 'completed'"
             class="icon-button close-completed"
-            title="关闭卡片，保留记录"
+            v-tooltip="'关闭卡片，保留记录'"
             aria-label="关闭已结束卡片"
             :disabled="locked"
             @click="closeCompleted"
@@ -245,7 +245,7 @@ function today() {
           <div v-if="current.status !== 'completed'" class="activity-actions">
             <button
               :disabled="locked"
-              :title="current.status === 'running' ? '暂停' : '继续'"
+              v-tooltip="current.status === 'running' ? '暂停' : '继续'"
               :aria-label="current.status === 'running' ? '暂停当前事项' : '继续当前事项'"
               @click="
                 action(
@@ -257,7 +257,7 @@ function today() {
               <Icon :name="current.status === 'running' ? 'pause' : 'play'" />
             </button>
             <button
-              title="结束"
+              v-tooltip="'结束'"
               aria-label="结束整个事项"
               :disabled="locked"
               @click="requestEnd(current)"
@@ -291,7 +291,7 @@ function today() {
             <button
               type="button"
               :disabled="locked"
-              title="修改本次进展"
+              v-tooltip="'修改本次进展'"
               aria-label="修改本次进展"
               @click="editProgress"
             >
@@ -302,7 +302,7 @@ function today() {
             type="button"
             class="next-session-button"
             :disabled="locked || current.status !== 'running'"
-            title="保存本次并开始下一步"
+            v-tooltip="'保存本次并开始下一步'"
             aria-label="保存本次并开始下一步"
             @pointerdown.prevent
             @click="saveProgress(true, $event.detail)"
@@ -323,6 +323,7 @@ function today() {
           <button
             class="icon-button"
             :aria-expanded="ui.backgroundOpen"
+            v-tooltip="'展开或收起后台事项'"
             aria-label="展开或收起后台事项"
             @click="ui.backgroundOpen = !ui.backgroundOpen"
           >
@@ -334,18 +335,18 @@ function today() {
             <i
               class="status-dot matter-color"
               :style="{ backgroundColor: matter.color }"
-              title="已暂停"
+              v-tooltip="'已暂停'"
               aria-label="已暂停"
             />
             <div class="background-content">
-              <div class="background-name" :title="matter.name">{{ matter.name }}</div>
+              <div class="background-name" v-tooltip="matter.name">{{ matter.name }}</div>
               <span class="muted small">{{ human(duration(matter, now)) }}</span>
             </div>
             <button
               class="icon-button"
               :disabled="locked"
               :aria-label="`继续 ${matter.name}`"
-              title="继续"
+              v-tooltip="'继续'"
               @click="action('resume', { id: matter.id })"
             >
               <Icon name="play" />
@@ -354,7 +355,7 @@ function today() {
               class="icon-button"
               :disabled="locked"
               :aria-label="`结束 ${matter.name}`"
-              title="结束"
+              v-tooltip="'结束'"
               @click="requestEnd(matter)"
             >
               <Icon name="stop" />

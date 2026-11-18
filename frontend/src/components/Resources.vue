@@ -120,7 +120,7 @@ async function remove(resource: Resource) {
       ><button
         v-if="!readonly"
         class="icon-button resource-add"
-        title="添加资料"
+        v-tooltip="'添加资料'"
         aria-label="添加资料"
         :disabled="!!busy"
         @click="adding = !adding"
@@ -141,7 +141,7 @@ async function remove(resource: Resource) {
         @contextmenu.stop="showMenu($event, resource)"
         @keydown.stop="menuKey($event, resource)"
       >
-        <button class="resource-open" :title="resource.target" @click="open(resource)">
+        <button class="resource-open" v-tooltip="resource.target" @click="open(resource)">
           <Icon :name="resource.kind === 'web' ? 'link' : resource.kind" /><span>{{
             resource.title
           }}</span></button
@@ -149,7 +149,7 @@ async function remove(resource: Resource) {
           v-if="!readonly"
           class="icon-button resource-menu-button"
           :aria-label="`${resource.title}的操作`"
-          title="资料操作"
+          v-tooltip="'资料操作'"
           aria-haspopup="menu"
           :aria-expanded="menu?.resource.id === resource.id"
           @click="showMenu($event, resource)"

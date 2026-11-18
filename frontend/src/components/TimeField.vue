@@ -103,13 +103,14 @@ onBeforeUnmount(close);
         <button
           type="button"
           :aria-label="`选择${label}日期和时间`"
-          :title="`选择${label}日期和时间`"
+          v-tooltip="`选择${label}日期和时间`"
           @click="open"
         >
           <Icon name="timer" />
         </button>
         <button
           type="button"
+          v-tooltip="`${label}设为现在`"
           :aria-label="`${label}设为现在`"
           @click="value = inputTime(new Date(now).toISOString())"
         >

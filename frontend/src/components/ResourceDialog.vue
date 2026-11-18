@@ -104,7 +104,7 @@ async function save() {
                 v-if="ui.resourceDraft.kind !== 'web'"
                 class="icon-button"
                 type="button"
-                :title="ui.resourceDraft.kind === 'folder' ? '选择文件夹' : '选择文件'"
+                v-tooltip="ui.resourceDraft.kind === 'folder' ? '选择文件夹' : '选择文件'"
                 :aria-label="ui.resourceDraft.kind === 'folder' ? '选择文件夹' : '选择文件'"
                 :disabled="!!busy"
                 @click="browse"

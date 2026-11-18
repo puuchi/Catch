@@ -449,7 +449,6 @@ summary:focus-visible {
   padding: 7px 8px;
   font-size: 11px;
   line-height: 1.6;
-  outline: none;
 }
 .input-area input:focus,
 .edit-input:focus,

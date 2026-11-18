@@ -47,7 +47,7 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div ref="container" class="current-timer" :title="text" :aria-label="`累计投入 ${text}`">
+  <div ref="container" class="current-timer" v-tooltip="text" :aria-label="`累计投入 ${text}`">
     <span :style="fontSize === undefined ? undefined : { fontSize: `${fontSize}px` }">{{
       text
     }}</span>
