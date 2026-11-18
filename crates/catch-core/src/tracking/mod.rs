@@ -1,5 +1,6 @@
 mod color;
 mod commands;
+mod timeline;
 mod validation;
 
 use crate::Result;
@@ -9,6 +10,7 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 pub use commands::{Command, Context};
+pub use timeline::{SessionRef, TimelineGap};
 type Extensions = BTreeMap<String, Value>;
 
 pub fn timestamp(value: &str) -> Result<i64> {

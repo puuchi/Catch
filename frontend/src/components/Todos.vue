@@ -5,6 +5,9 @@ import Resources from './Resources.vue';
 import ValidationHint from './ValidationHint.vue';
 import ActionMenu from './ActionMenu.vue';
 import DatePicker from './DatePicker.vue';
+import HistoryFilters from './HistoryFilters.vue';
+import HistoryEntry from './HistoryEntry.vue';
+import { inDateRange } from '../history';
 import { host } from '../bridge';
 import {
   attachComposerResources,
@@ -56,15 +59,17 @@ function compositionEnd() {
   compositionEnded = performance.now();
 }
 const scroll = ref<HTMLElement>();
+const archiveFrom = ref(''),
+  archiveTo = ref('');
 const saveScroll = useScroll(scroll, () => (ui.history ? 'history' : 'todos'));
 const rows = computed(() => {
   if (!state.value) return [];
   if (!ui.history) return visibleTodos(state.value.todos.todos, day(now.value));
   const byId = new Map(state.value.todos.archive.filter((t) => !t.deletedAt).map((t) => [t.id, t]));
   for (const row of state.value.todos.todos) if (row.done && !row.deletedAt) byId.set(row.id, row);
-  return [...byId.values()].sort((a, b) =>
-    (b.completedAt || '').localeCompare(a.completedAt || ''),
-  );
+  return [...byId.values()]
+    .filter((todo) => inDateRange(todo.completedAt, archiveFrom.value, archiveTo.value))
+    .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
 });
 const activeRepeat = (todo: Todo) =>
   state.value?.recurrences.templates.find(
@@ -253,7 +258,16 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
         <Icon name="back" />
       </button>
       <strong>归档</strong>
+      <span id="archive-filter-tools" class="history-heading-tools" />
     </header>
+    <HistoryFilters
+      v-if="ui.history"
+      v-model:from="archiveFrom"
+      v-model:to="archiveTo"
+      :count="rows.length"
+      target="#archive-filter-tools"
+      date-label="完成日期"
+    />
     <form
       v-if="!ui.history"
       id="todoComposer"
@@ -363,138 +377,174 @@ onBeforeUnmount(() => clearTimeout(clickTimer));
       :aria-label="ui.history ? '归档列表' : '待办列表'"
       @scroll="saveScroll"
     >
-      <template v-for="(todo, index) in rows" :key="todo.id">
-        <li v-if="groupLabel(todo, index)" class="section-divider">
-          {{ ui.history ? groupLabel(todo, index).replace('-', ' 年 ') + ' 月' : '今日已完成' }}
-          <button
-            v-if="!ui.history"
-            class="icon-button archive-completed"
-            title="归档已完成"
-            aria-label="归档已完成"
-            :disabled="!!busy"
-            @click="action('archive', {})"
+      <template v-if="ui.history">
+        <template v-for="(todo, index) in rows" :key="todo.id">
+          <li v-if="groupLabel(todo, index)" class="section-divider">
+            {{ groupLabel(todo, index).replace('-', ' 年 ') + ' 月' }}
+          </li>
+          <li>
+            <HistoryEntry
+              kind="todo"
+              :title="todo.text"
+              :date="todo.completedAt"
+              date-label="完成日期"
+              :note="todo.notes"
+              :has-details="!!todo.resources?.length"
+              :locked="!!busy"
+              @restore="restoreArchived(todo)"
+            >
+              <Resources
+                v-if="todo.resources?.length"
+                :owner="{ kind: 'todo', id: todo.id }"
+                :resources="todo.resources"
+                readonly
+                compact
+              />
+            </HistoryEntry>
+          </li>
+        </template>
+      </template>
+      <template v-else>
+        <template v-for="(todo, index) in rows" :key="todo.id">
+          <li v-if="groupLabel(todo, index)" class="section-divider">
+            {{ ui.history ? groupLabel(todo, index).replace('-', ' 年 ') + ' 月' : '今日已完成' }}
+            <button
+              v-if="!ui.history"
+              class="icon-button archive-completed"
+              title="归档已完成"
+              aria-label="归档已完成"
+              :disabled="!!busy"
+              @click="action('archive', {})"
+            >
+              <Icon name="broom" />
+            </button>
+          </li>
+          <li
+            class="todo-item"
+            :class="{
+              done: todo.done,
+              urgent: todo.urgent,
+              'deadline-today': todo.deadline === day(now),
+            }"
+            :data-resource-kind="'todo'"
+            :data-resource-id="todo.id"
+            @contextmenu="showMenu($event, todo)"
+            @keydown="menuKey($event, todo)"
           >
-            <Icon name="broom" />
-          </button>
-        </li>
-        <li
-          class="todo-item"
-          :class="{
-            done: todo.done,
-            urgent: todo.urgent,
-            'deadline-today': todo.deadline === day(now),
-          }"
-          :data-resource-kind="'todo'"
-          :data-resource-id="todo.id"
-          @contextmenu="showMenu($event, todo)"
-          @keydown="menuKey($event, todo)"
-        >
-          <input
-            v-if="!ui.history"
-            type="checkbox"
-            :checked="todo.done"
-            :aria-label="`${todo.done ? '撤销完成' : '完成'} ${todo.text}`"
-            :disabled="!!busy"
-            @change="action('complete', { id: todo.id, done: !todo.done })"
-          />
-          <div class="todo-content">
-            <div class="todo-main">
-              <button
-                class="todo-text"
-                :aria-expanded="!ui.collapsedTodos?.includes(todo.id)"
-                @click="titleClick($event, todo)"
-                @dblclick="!ui.history && edit(todo)"
-              >
-                {{ todo.text }}
-              </button>
-            </div>
-            <div v-show="!ui.collapsedTodos?.includes(todo.id)" class="todo-details">
-              <p
-                v-if="todo.notes"
-                class="todo-notes"
-                :class="{
-                  'todo-notes-clamped': longNotes(todo) && !ui.expandedTodoNotes?.includes(todo.id),
-                }"
-              >
-                {{ todo.notes }}
-              </p>
-              <button
-                v-if="longNotes(todo)"
-                class="quiet-button small"
-                :aria-expanded="!!ui.expandedTodoNotes?.includes(todo.id)"
-                @click="toggleNotes(todo.id)"
-              >
-                {{ ui.expandedTodoNotes?.includes(todo.id) ? '收起' : '展开' }}
-              </button>
-              <div class="todo-metadata">
-                <span
-                  v-if="todo.deadline && !todo.done"
-                  class="deadline-badge todo-deadline"
-                  :class="{
-                    today: todo.deadline === day(now),
-                    overdue: todo.deadline < day(now) && !todo.done,
-                  }"
-                  >{{ todo.deadline.slice(5).replace('-', '月') }}日</span
-                ><button
-                  v-if="todo.recurrence"
-                  class="repeat-mark quiet-button"
-                  :title="activeRepeat(todo) ? '重复规则' : '已停止重复'"
-                  :disabled="!activeRepeat(todo)"
-                  @click="repeat(todo)"
+            <input
+              v-if="!ui.history"
+              type="checkbox"
+              :checked="todo.done"
+              :aria-label="`${todo.done ? '撤销完成' : '完成'} ${todo.text}`"
+              :disabled="!!busy"
+              @change="action('complete', { id: todo.id, done: !todo.done })"
+            />
+            <div class="todo-content">
+              <div class="todo-main">
+                <button
+                  class="todo-text"
+                  :aria-expanded="!ui.collapsedTodos?.includes(todo.id)"
+                  @click="titleClick($event, todo)"
+                  @dblclick="!ui.history && edit(todo)"
                 >
-                  <Icon name="repeat" />
+                  {{ todo.text }}
                 </button>
-                <Resources
-                  :owner="{ kind: 'todo', id: todo.id }"
-                  :resources="todo.resources"
-                  :readonly="ui.history"
-                  compact
-                />
+              </div>
+              <div v-show="!ui.collapsedTodos?.includes(todo.id)" class="todo-details">
+                <p
+                  v-if="todo.notes"
+                  class="todo-notes"
+                  :class="{
+                    'todo-notes-clamped':
+                      longNotes(todo) && !ui.expandedTodoNotes?.includes(todo.id),
+                  }"
+                >
+                  {{ todo.notes }}
+                </p>
+                <button
+                  v-if="longNotes(todo)"
+                  class="quiet-button small"
+                  :aria-expanded="!!ui.expandedTodoNotes?.includes(todo.id)"
+                  @click="toggleNotes(todo.id)"
+                >
+                  {{ ui.expandedTodoNotes?.includes(todo.id) ? '收起' : '展开' }}
+                </button>
+                <div class="todo-metadata">
+                  <span
+                    v-if="todo.deadline && !todo.done"
+                    class="deadline-badge todo-deadline"
+                    :class="{
+                      today: todo.deadline === day(now),
+                      overdue: todo.deadline < day(now) && !todo.done,
+                    }"
+                    >{{ todo.deadline.slice(5).replace('-', '月') }}日</span
+                  ><button
+                    v-if="todo.recurrence"
+                    class="repeat-mark quiet-button"
+                    :title="activeRepeat(todo) ? '重复规则' : '已停止重复'"
+                    :disabled="!activeRepeat(todo)"
+                    @click="repeat(todo)"
+                  >
+                    <Icon name="repeat" />
+                  </button>
+                  <Resources
+                    :owner="{ kind: 'todo', id: todo.id }"
+                    :resources="todo.resources"
+                    :readonly="ui.history"
+                    compact
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          <div v-if="ui.history" class="archived-actions">
-            <time
-              v-show="!ui.collapsedTodos?.includes(todo.id)"
-              class="archive-date"
-              :datetime="todo.completedAt || undefined"
-              >{{ todo.completedAt }}</time
-            >
-            <button
-              class="icon-button"
-              title="恢复到待办"
-              :aria-label="`恢复到待办：${todo.text}`"
-              :disabled="!!busy"
-              @click="restoreArchived(todo)"
-            >
-              <Icon name="restore" />
-            </button>
-          </div>
-          <div v-else class="row-actions">
-            <button
-              v-if="!todo.done"
-              class="todo-start"
-              :disabled="!!busy"
-              :aria-label="`开始 ${todo.text}`"
-              title="开始投入"
-              @click="start(todo)"
-            >
-              <Icon name="play" /></button
-            ><button
-              class="icon-button todo-menu-button"
-              :aria-label="`${todo.text}的操作`"
-              title="待办操作"
-              aria-haspopup="menu"
-              :aria-expanded="menu?.todo.id === todo.id"
-              @click="showMenu($event, todo)"
-            >
-              <Icon name="more" />
-            </button>
-          </div>
-        </li>
+            <div v-if="ui.history" class="archived-actions">
+              <time
+                v-show="!ui.collapsedTodos?.includes(todo.id)"
+                class="archive-date"
+                :datetime="todo.completedAt || undefined"
+                >{{ todo.completedAt }}</time
+              >
+              <button
+                class="icon-button"
+                title="恢复到待办"
+                :aria-label="`恢复到待办：${todo.text}`"
+                :disabled="!!busy"
+                @click="restoreArchived(todo)"
+              >
+                <Icon name="restore" />
+              </button>
+            </div>
+            <div v-else class="row-actions">
+              <button
+                v-if="!todo.done"
+                class="todo-start"
+                :disabled="!!busy"
+                :aria-label="`开始 ${todo.text}`"
+                title="开始投入"
+                @click="start(todo)"
+              >
+                <Icon name="play" /></button
+              ><button
+                class="icon-button todo-menu-button"
+                :aria-label="`${todo.text}的操作`"
+                title="待办操作"
+                aria-haspopup="menu"
+                :aria-expanded="menu?.todo.id === todo.id"
+                @click="showMenu($event, todo)"
+              >
+                <Icon name="more" />
+              </button>
+            </div>
+          </li>
+        </template>
       </template>
       <li v-if="!rows.length" class="empty-state">
-        {{ ui.history ? '还没有完成的记录' : '留一点空白，也很好。' }}
+        {{
+          ui.history
+            ? archiveFrom || archiveTo
+              ? '没有符合筛选的归档记录'
+              : '还没有完成的记录'
+            : '留一点空白，也很好。'
+        }}
       </li>
     </ul>
   </section>

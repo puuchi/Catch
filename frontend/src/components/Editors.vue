@@ -1,10 +1,22 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import Modal from './Modal.vue';
-import Icon from './Icon.vue';
+import SessionTimeFields from './SessionTimeFields.vue';
 import DatePicker from './DatePicker.vue';
 import { busy, dispatch, state, ui } from '../store';
 import { human, resizedSegments } from '../display';
+import { closeEditor, sessionEditorBusy } from '../session-editor';
+const saving = ref(false);
+const sessionForm = computed(() => ui.editor?.kind === 'record' || ui.editor?.kind === 'session');
+async function requestClose() {
+  if (saving.value) return;
+  error.value = '';
+  try {
+    await closeEditor();
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  }
+}
 const error = ref('');
 let compositionEnded = -Infinity;
 let composing = false;
@@ -36,7 +48,7 @@ const title = computed(() =>
     : ui.editor?.kind === 'matter'
       ? '编辑事项'
       : ui.editor?.kind === 'session'
-        ? '编辑本次投入'
+        ? `编辑本次 · ${state.value?.tracking.activities.find((m) => m.id === ui.editor?.activityId)?.name || ui.editor.name}`
         : '补录投入',
 );
 watch(
@@ -73,11 +85,12 @@ const previewDuration = computed(() => {
   }
 });
 async function save() {
-  if (ui.editor?.kind === 'todo' && busy.value) return;
+  if (saving.value || sessionEditorBusy.value || busy.value) return;
   const draft = ui.editor;
   if (!draft) return;
   if (draft.kind === 'todo' && (composing || performance.now() - compositionEnded < 80)) return;
   error.value = '';
+  saving.value = true;
   try {
     if (['todo', 'matter'].includes(draft.kind) && !draft.name.trim()) throw Error('先写下名称');
     if (draft.kind === 'todo') {
@@ -106,16 +119,23 @@ async function save() {
       const startTime = new Date(draft.start).toISOString(),
         endTime = new Date(draft.end).toISOString();
       if (Date.parse(endTime) < Date.parse(startTime)) throw Error('结束时间不能早于开始时间');
-      if (draft.kind === 'session' && draft.original)
-        await dispatch('tracking', 'edit-session', {
+      if (draft.kind === 'session' && draft.original) {
+        const fields = {
           activityId: draft.activityId,
           sessionId: draft.sessionId,
           startTime,
           endTime,
           progress: draft.progress,
           segments: resizedSegments(draft.original, startTime, endTime),
-        });
-      else {
+        };
+        if (draft.resumeToken)
+          await dispatch('tracking', 'finish-session-edit', {
+            ...fields,
+            editToken: draft.resumeToken,
+            cancel: false,
+          });
+        else await dispatch('tracking', 'edit-session', fields);
+      } else {
         if (!draft.activityId && !draft.name.trim()) throw Error('先写下事项名称');
         await dispatch('tracking', 'add-session', {
           activityId: draft.activityId || null,
@@ -129,11 +149,17 @@ async function save() {
     ui.editor = null;
   } catch (cause) {
     error.value = (cause as Error).message;
+  } finally {
+    saving.value = false;
   }
 }
 </script>
 <template>
-  <Modal v-if="ui.editor" :title="title" @close="ui.editor = null"
+  <Modal
+    v-if="ui.editor"
+    :title="title"
+    :class="{ 'session-editor': sessionForm }"
+    @close="requestClose"
     ><form
       novalidate
       @submit.prevent="save"
@@ -141,7 +167,7 @@ async function save() {
       @compositionend="compositionEnd"
       @compositionstart="composing = true"
     >
-      <div class="editor-body">
+      <div class="editor-body" :inert="saving || sessionEditorBusy">
         <select
           v-if="ui.editor.kind === 'record'"
           v-model="ui.editor.activityId"
@@ -188,30 +214,68 @@ async function save() {
             maxlength="2000"
             aria-label="本次进展"
             placeholder="本次进展（可选）"
-          /><label class="stack-field"
-            >开始<input
-              v-model="ui.editor.start"
-              type="datetime-local"
-              step="0.001"
-              aria-label="开始时间" /></label
-          ><label class="stack-field"
-            >结束<input
-              v-model="ui.editor.end"
-              type="datetime-local"
-              step="0.001"
-              aria-label="结束时间" /></label
-          ><output class="editor-duration">{{ previewDuration }}</output></template
-        >
+          />
+          <SessionTimeFields v-model:start="ui.editor.start" v-model:end="ui.editor.end" />
+        </template>
         <p v-if="error" role="alert" class="editor-error">{{ error }}</p>
       </div>
-      <footer class="editor-buttons" :class="{ 'todo-editor-buttons': ui.editor.kind === 'todo' }">
+      <footer
+        class="editor-buttons"
+        :class="{
+          'todo-editor-buttons': ui.editor.kind === 'todo',
+          'session-editor-buttons': sessionForm,
+        }"
+      >
         <div v-if="ui.editor.kind === 'todo'" class="editor-option-row">
           <label><input v-model="ui.editor.urgent" type="checkbox" />紧急</label>
           <DatePicker v-if="ui.editor.scope === 'once'" v-model="ui.editor.deadline" />
         </div>
-        <button type="button" @click="ui.editor = null">取消</button
-        ><button class="primary" :disabled="!!busy">保存</button>
+        <output v-if="sessionForm" class="editor-duration" aria-live="polite"
+          >时长 {{ previewDuration || '—' }}</output
+        >
+        <button
+          type="button"
+          :disabled="saving || sessionEditorBusy || (sessionForm && !!busy)"
+          @click="requestClose"
+        >
+          取消</button
+        ><button class="primary" :disabled="saving || sessionEditorBusy || !!busy">保存</button>
       </footer>
     </form></Modal
   >
 </template>
+<style scoped>
+.session-editor :deep(.editor-heading strong) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.session-editor :deep(.editor-heading button) {
+  flex-shrink: 0;
+}
+.session-editor .editor-body {
+  padding: 12px 10px;
+  min-width: 0;
+}
+.session-editor .editor-body > input,
+.session-editor .editor-body > select {
+  min-width: 0;
+  font-size: inherit;
+}
+.session-editor-buttons {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+}
+.session-editor-buttons .editor-duration {
+  flex: 1 1 80px;
+  min-width: 0;
+  margin-right: auto;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.session-editor-buttons button {
+  flex-shrink: 0;
+  padding: 7px 9px;
+  font-size: inherit;
+}
+</style>

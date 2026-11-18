@@ -86,6 +86,32 @@ pub enum Command {
         progress: String,
         segments: Vec<Segment>,
     },
+    MergeSessions {
+        first: SessionRef,
+        second: Option<SessionRef>,
+        gap: Option<TimelineGap>,
+        target_activity_id: String,
+    },
+    SplitSession {
+        activity_id: String,
+        session_id: String,
+        at_time: String,
+    },
+    BeginSessionEdit {
+        activity_id: String,
+        session_id: String,
+        progress: Option<String>,
+    },
+    FinishSessionEdit {
+        activity_id: String,
+        session_id: String,
+        edit_token: String,
+        cancel: bool,
+        start_time: Option<String>,
+        end_time: Option<String>,
+        progress: Option<String>,
+        segments: Option<Vec<Segment>>,
+    },
     DeleteSession {
         activity_id: String,
         session_id: String,
@@ -801,6 +827,56 @@ impl Document {
                 let index = next.index(id)?;
                 next.activities[index].resources = resources.clone();
                 next.activities[index].updated_at = time.clone();
+            }
+            Command::MergeSessions {
+                first,
+                second,
+                gap,
+                target_activity_id,
+            } => {
+                next.merge_sessions(
+                    first,
+                    second.as_ref(),
+                    gap.as_ref(),
+                    target_activity_id,
+                    context,
+                )?;
+            }
+            Command::SplitSession {
+                activity_id,
+                session_id,
+                at_time,
+            } => {
+                next.split_session(activity_id, session_id, at_time, context)?;
+            }
+            Command::BeginSessionEdit {
+                activity_id,
+                session_id,
+                progress,
+            } => {
+                next.begin_session_edit(activity_id, session_id, progress.as_deref(), context)?;
+            }
+            Command::FinishSessionEdit {
+                activity_id,
+                session_id,
+                edit_token,
+                cancel,
+                start_time,
+                end_time,
+                progress,
+                segments,
+            } => {
+                next.finish_session_edit(
+                    activity_id,
+                    session_id,
+                    edit_token,
+                    *cancel,
+                    start_time.as_deref(),
+                    end_time.as_deref(),
+                    progress.as_deref(),
+                    segments.as_deref(),
+                    context,
+                )?;
             }
             Command::Checkpoint => {}
         }

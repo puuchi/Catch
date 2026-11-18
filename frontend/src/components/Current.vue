@@ -202,6 +202,8 @@ async function closeCompleted() {
 function details() {
   if (!current.value) return;
   ui.selectedMatterId = current.value.id;
+  ui.selectedSessionId = null;
+  ui.selectedSessionDate = null;
   ui.page = 'timeline';
 }
 function today() {

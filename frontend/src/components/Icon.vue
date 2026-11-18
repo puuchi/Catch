@@ -22,6 +22,8 @@ const paths: Record<string, string> = {
   stop: 'M6 6h12v12H6Z',
   next: 'M3 12h14M11 6l6 6-6 6M21 5v14',
   edit: 'M15 4l5 5M4 20l2-7L16 3l5 5-10 10-7 2',
+  merge: 'M4 3v4c0 5 8 3 8 8v6M20 3v4c0 5-8 3-8 8M8 17l4 4 4-4',
+  split: 'M12 21v-6c0-5-8-3-8-8V3M12 15c0-5 8-3 8-8V3M1 6l3-3 3 3M17 6l3-3 3 3',
   chevron: 'M6 9l6 6 6-6',
   sliders: 'M4 7h16M4 17h16M8 4v6M16 14v6',
   power: 'M12 3v9M6 5a9 9 0 1 0 12 0',

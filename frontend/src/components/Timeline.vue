@@ -1,58 +1,90 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import Icon from './Icon.vue';
+import DateField from './DateField.vue';
 import Resources from './Resources.vue';
+import ActionMenu from './ActionMenu.vue';
+import EffortEntry from './EffortEntry.vue';
+import TimelineGap from './TimelineGap.vue';
 import { busy, dispatch, editMatter, editor, inform, now, state, ui } from '../store';
+import { bounds, day, duration, human, inputTime, statusShort } from '../display';
+import type { Entry } from '../display';
 import {
-  bounds,
-  day,
-  duration,
-  entries,
-  gaps,
-  human,
-  inputTime,
-  statusShort,
-  time,
-} from '../display';
-import type { Matter, Session } from '../models';
+  detailGroups,
+  focusRows,
+  focusSummary,
+  HEAT_LEVELS,
+  sessionKey,
+  timelineRows,
+} from '../timeline';
+import { openSessionEditor } from '../session-editor';
 import { useScroll } from '../scroll';
-const timelineScroll = ref<HTMLElement>(),
-  detailsScroll = ref<HTMLElement>();
-const saveTimelineScroll = useScroll(
-  timelineScroll,
-  () => `timeline:${ui.timelineDate}:${ui.focusedMatterId || 'all'}`,
-);
+const timelineScroll = ref<HTMLElement>();
+const detailsScroll = ref<HTMLElement>();
+// Focus is a presentation change within the same day, not a new scroll context.
+const saveTimelineScroll = useScroll(timelineScroll, () => `timeline:${ui.timelineDate}`);
 const saveDetailsScroll = useScroll(detailsScroll, () => `matter:${ui.selectedMatterId}`);
+const activities = computed(() => state.value?.tracking.activities || []);
 const details = computed(() =>
-  state.value?.tracking.activities.find((m) => m.id === ui.selectedMatterId),
+  activities.value.find((matter) => matter.id === ui.selectedMatterId),
 );
-const legend = ref(false),
-  menu = ref<string | null>(null);
-const list = computed(() =>
-  entries(state.value?.tracking.activities || [], ui.timelineDate, now.value).filter(
-    (e) => !ui.focusedMatterId || e.matter.id === ui.focusedMatterId,
-  ),
+const groups = computed(() => (details.value ? detailGroups(details.value, now.value) : []));
+const originDate = computed(() => {
+  const containing = groups.value.filter((group) =>
+    group.entries.some((entry) => entry.session.id === ui.selectedSessionId),
+  );
+  return (
+    containing.find((group) => group.date === ui.selectedSessionDate)?.date || containing[0]?.date
+  );
+});
+const legend = ref(false);
+const menu = ref<{
+  entry: Entry;
+  date: string;
+  x: number;
+  y: number;
+  trigger?: HTMLElement;
+} | null>(null);
+const allRows = computed(() => timelineRows(activities.value, ui.timelineDate, now.value));
+const focused = computed(() => activities.value.find((matter) => matter.id === ui.focusedMatterId));
+const rows = computed(() =>
+  focused.value
+    ? focusRows(allRows.value, focused.value.id, ui.timelineFocusMode !== 'soft')
+    : allRows.value,
 );
-const blanks = computed(() =>
-  ui.focusedMatterId
-    ? []
-    : gaps(state.value?.tracking.activities || [], ui.timelineDate, now.value),
+const summary = computed(() =>
+  focused.value ? focusSummary(focused.value, ui.timelineDate, now.value) : null,
 );
-const total = computed(
-  () =>
-    state.value?.tracking.activities.reduce(
-      (sum, m) => sum + duration(m, now.value, bounds(ui.timelineDate)),
-      0,
-    ) || 0,
-);
+const menuItems = computed(() => {
+  const target = menu.value;
+  if (!target) return [];
+  return [
+    ...(!details.value ? [{ id: 'details', label: '查看详情', icon: 'arrow' }] : []),
+    { id: 'edit', label: '编辑本次', icon: 'edit', disabled: !!busy.value },
+    { id: 'delete', label: '删除本次', icon: 'trash', danger: true, disabled: !!busy.value },
+  ];
+});
+function clearFocus() {
+  ui.focusedMatterId = null;
+  ui.timelineFocusMode = undefined;
+}
+function focus(entry: Entry, only: boolean) {
+  if (!only && ui.focusedMatterId === entry.matter.id && ui.timelineFocusMode === 'soft')
+    clearFocus();
+  else {
+    ui.focusedMatterId = entry.matter.id;
+    ui.timelineFocusMode = only ? 'only' : 'soft';
+  }
+}
 function move(n: number) {
   const date = new Date(`${ui.timelineDate}T12:00:00`);
   date.setDate(date.getDate() + n);
   ui.timelineDate = day(+date);
 }
 function record(activityId?: string, start?: number, end?: number) {
-  const stop = end ?? Math.min(now.value, bounds(ui.timelineDate)[1] - 1),
-    from = start ?? Math.max(bounds(ui.timelineDate)[0], stop - 30 * 60_000);
+  if (busy.value) return;
+  const stop = end ?? Math.min(now.value, bounds(ui.timelineDate)[1] - 1);
+  const from = start ?? Math.max(bounds(ui.timelineDate)[0], stop - 30 * 60_000);
   ui.editor = editor({
     kind: 'record',
     activityId,
@@ -60,230 +92,396 @@ function record(activityId?: string, start?: number, end?: number) {
     end: inputTime(new Date(stop).toISOString()),
   });
 }
-function editSession(matter: Matter, session: Session) {
-  ui.editor = editor({
-    kind: 'session',
-    activityId: matter.id,
-    sessionId: session.id,
-    name: matter.name,
-    progress: session.progress,
-    start: inputTime(session.startTime),
-    end: inputTime(session.endTime || new Date(now.value).toISOString()),
-    original: JSON.parse(JSON.stringify(session)),
-  });
+function showMenu(event: MouseEvent, entry: Entry, date: string) {
+  event.preventDefault();
+  const element = event.currentTarget as HTMLElement;
+  const trigger = element.matches('button')
+    ? element
+    : element.querySelector<HTMLElement>('.effort-menu') || element;
+  const rect = trigger.getBoundingClientRect();
+  menu.value = {
+    entry,
+    date,
+    x: event.type === 'contextmenu' ? event.clientX : rect.left,
+    y: event.type === 'contextmenu' ? event.clientY : rect.bottom,
+    trigger,
+  };
+}
+async function menuAction(id: string) {
+  const target = menu.value;
+  menu.value = null;
+  if (!target) return;
+  const { entry, date } = target;
+  if (id === 'details') {
+    ui.selectedSessionId = entry.session.id;
+    ui.selectedSessionDate = date;
+    ui.selectedMatterId = entry.matter.id;
+  } else if (id === 'edit') await openSessionEditor(entry.matter, entry.session);
+  else if (id === 'delete')
+    await remove('delete-session', { activityId: entry.matter.id, sessionId: entry.session.id });
 }
 async function remove(type: string, payload: Record<string, unknown>) {
+  if (busy.value) return;
   try {
     await dispatch('tracking', type, payload);
-    menu.value = null;
     if (type === 'remove') ui.selectedMatterId = null;
   } catch (error) {
     inform(error);
   }
 }
-function tint(color: string, ms: number) {
-  const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16)).join(',');
-  return {
-    borderLeftColor: color,
-    backgroundColor: `rgba(${rgb},${ms >= 3_600_000 ? 0.15 : ms >= 1_800_000 ? 0.11 : ms >= 900_000 ? 0.075 : 0.045})`,
-  };
-}
+watch(
+  () => [ui.selectedMatterId, ui.selectedSessionId, originDate.value],
+  async () => {
+    if (!details.value || !ui.selectedSessionId || !originDate.value) return;
+    await nextTick();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const key = sessionKey(ui.selectedSessionId, originDate.value);
+    detailsScroll.value
+      ?.querySelector<HTMLElement>(`[data-session-key="${CSS.escape(key)}"]`)
+      ?.scrollIntoView({ block: 'center' });
+  },
+  { immediate: true },
+);
+watch(activities, () => {
+  if (ui.focusedMatterId && !focused.value) clearFocus();
+});
 </script>
 <template>
   <section class="module-page timeline-page" aria-label="时间轴">
-    <template v-if="details"
-      ><header class="details-heading">
-        <button class="icon-button" aria-label="返回时间轴" @click="ui.selectedMatterId = null">
-          ‹</button
-        ><span class="spacer" /><button
-          class="icon-button"
-          aria-label="编辑事项"
-          @click="editMatter(details.id)"
-        >
-          <Icon name="edit" /></button
-        ><button
-          class="icon-button"
-          :disabled="!!busy"
-          aria-label="删除整个事项"
-          @click="remove('remove', { id: details.id })"
-        >
-          <Icon name="trash" />
-        </button>
-      </header>
-      <div ref="detailsScroll" class="matter-detail-body" @scroll="saveDetailsScroll">
+    <template v-if="details">
+      <div class="details-fixed">
+        <header class="details-heading">
+          <button
+            class="icon-button"
+            title="返回时间轴"
+            aria-label="返回时间轴"
+            @click="ui.selectedMatterId = null"
+          >
+            <Icon name="back" />
+          </button>
+          <span class="spacer" />
+          <button
+            class="icon-button"
+            aria-label="编辑事项"
+            :disabled="!!busy"
+            @click="editMatter(details.id)"
+          >
+            <Icon name="edit" />
+          </button>
+          <button
+            class="icon-button"
+            aria-label="补录一次投入"
+            title="补录一次投入"
+            :disabled="!!busy"
+            @click="record(details.id)"
+          >
+            <Icon name="plus" />
+          </button>
+          <button
+            class="icon-button"
+            aria-label="删除整个事项"
+            :disabled="!!busy"
+            @click="remove('remove', { id: details.id })"
+          >
+            <Icon name="trash" />
+          </button>
+        </header>
         <div class="matter-title">
+          <i class="status-dot" :style="{ background: details.color }" />
           <h2>{{ details.name }}</h2>
           <span class="timeline-status">{{ statusShort(details.status) }}</span>
         </div>
+      </div>
+      <div ref="detailsScroll" class="matter-detail-body" @scroll="saveDetailsScroll">
         <div class="matter-stats">
           <div>
             <strong>{{ human(duration(details, now)) }}</strong><span>累计投入</span>
           </div>
           <div>
-            <strong>{{ details.sessions.length }}</strong><span>次投入</span>
+            <strong>{{ details.sessions.length }} 次</strong><span>投入</span>
           </div>
         </div>
         <Resources :owner="{ kind: 'matter', id: details.id }" :resources="details.resources" />
-        <div class="session-list">
-          <article
-            v-for="(session, index) in details.sessions"
-            :key="session.id"
-            class="session-card"
-          >
-            <div class="session-card-heading">
-              <span>第 {{ index + 1 }} 次</span><strong>{{ human(duration(session, now)) }}</strong
-              ><span class="spacer" /><button
-                class="icon-button"
-                :disabled="!session.endTime"
-                :title="session.endTime ? '编辑本次记录' : '先暂停，再修改时间'"
-                :aria-label="`编辑第 ${index + 1} 次投入`"
-                @click="editSession(details, session)"
-              >
-                <Icon name="edit" /></button
-              ><button
-                class="icon-button"
-                :disabled="!!busy"
-                :aria-label="`删除第 ${index + 1} 次投入`"
-                @click="remove('delete-session', { activityId: details.id, sessionId: session.id })"
-              >
-                <Icon name="trash" />
-              </button>
-            </div>
-            <div class="muted small">
-              {{ day(Date.parse(session.startTime)) }} · {{ time(session.startTime) }}—{{
-                time(session.endTime)
-              }}
-            </div>
-            <p v-if="session.progress" class="session-progress">{{ session.progress }}</p>
-            <div v-if="session.segments.length > 1" class="muted small">
-              {{ session.segments.length }} 段有效时间
-            </div>
-          </article>
-        </div>
-        <button class="quiet-button add-session" @click="record(details.id)">
-          <Icon name="plus" />补录一次投入
-        </button>
-      </div></template
-    ><template v-else
-      ><div class="timeline-toolbar">
-        <button aria-label="前一天" @click="move(-1)">‹</button
-        ><input v-model="ui.timelineDate" type="date" aria-label="时间轴日期" /><button
-          aria-label="后一天"
-          @click="move(1)"
+        <section
+          v-for="group in groups"
+          :key="group.date"
+          class="detail-day"
+          :aria-label="group.date"
         >
-          ›</button
-        ><button @click="ui.timelineDate = day(now)">今天</button>
+          <h3>{{ group.date.replaceAll('-', '/') }}</h3>
+          <EffortEntry
+            v-for="entry in group.entries"
+            :key="sessionKey(entry.session.id, group.date)"
+            :entry="entry"
+            :date="group.date"
+            detail
+            :origin="ui.selectedSessionId === entry.session.id && originDate === group.date"
+            @menu="showMenu($event, entry, group.date)"
+          />
+        </section>
       </div>
-      <div class="timeline-summary">
-        <span>{{ human(total) }}</span>
-        <div class="timeline-tools">
+    </template>
+    <template v-else>
+      <div class="timeline-toolbar">
+        <aside v-if="focused && summary" class="timeline-focus-summary" aria-label="当日事项摘要">
+          <div>
+            <i class="status-dot" :style="{ background: focused.color }" />
+            <strong :title="focused.name">{{ focused.name }}</strong>
+            <button class="icon-button" title="取消聚焦" aria-label="取消聚焦" @click="clearFocus">
+              <Icon name="close" />
+            </button>
+          </div>
+          <p>当日 {{ summary.count }} 次投入 · 累计 {{ human(summary.duration) }}</p>
+        </aside>
+        <div v-else class="timeline-date-controls">
+          <button class="date-nav" aria-label="前一天" title="前一天" @click="move(-1)">‹</button>
+          <DateField v-model="ui.timelineDate" label="时间轴日期" />
+          <button class="date-nav" aria-label="后一天" title="后一天" @click="move(1)">›</button>
+          <button class="date-nav today-button" @click="ui.timelineDate = day(now)">今天</button>
+        </div>
+        <Teleport defer to="#timeline-tools">
           <button
             class="icon-button"
+            title="颜色说明"
             aria-label="颜色说明"
             :aria-expanded="legend"
             @click="legend = !legend"
           >
-            <Icon name="info" /></button
-          ><button class="icon-button" title="补录" aria-label="补录" @click="record()">
+            <Icon name="info" />
+          </button>
+          <button
+            class="icon-button"
+            title="补录"
+            aria-label="补录"
+            :disabled="!!busy"
+            @click="record()"
+          >
             <Icon name="plus" />
           </button>
-        </div>
+        </Teleport>
       </div>
-      <div v-if="legend" class="heat-legend">
+      <section v-if="legend" class="heat-legend" aria-label="颜色说明">
         <p>颜色区分事项，深浅表示时长</p>
-        <span>＜15 分 · 15–30 · 30–60 · ≥60 分</span>
-      </div>
+        <div class="heat-levels">
+          <span v-for="level in HEAT_LEVELS" :key="level.label"
+            ><i :style="{ background: `rgba(46,90,73,${level.opacity})` }" />{{ level.label }}</span
+          >
+        </div>
+      </section>
       <div ref="timelineScroll" class="timeline-list" @scroll="saveTimelineScroll">
-        <button
-          v-if="ui.focusedMatterId"
-          class="focus-clear quiet-button"
-          @click="ui.focusedMatterId = null"
-        >
-          取消聚焦 ×
-        </button>
-        <article
-          v-for="entry in list"
-          :key="entry.session.id"
-          class="timeline-entry"
-          :style="tint(entry.matter.color || '#2e5a49', entry.duration)"
-          @contextmenu.prevent="menu = menu === entry.session.id ? null : entry.session.id"
-        >
-          <div class="timeline-entry-main">
-            <button class="timeline-name" @click="ui.selectedMatterId = entry.matter.id">
-              {{ entry.matter.name }}</button><span class="timeline-duration">{{
-              human(entry.duration)
-            }}</span>
-          </div>
-          <div class="timeline-entry-meta">
-            <span
-              >{{ time(new Date(entry.start).toISOString()) }}—{{
-                entry.session.endTime ? time(new Date(entry.end).toISOString()) : '进行中'
-              }}</span
-            ><button
-              class="color-focus"
-              :style="{ background: entry.matter.color }"
-              title="聚焦此事项"
-              :aria-label="`聚焦 ${entry.matter.name}`"
-              @click="
-                ui.focusedMatterId = ui.focusedMatterId === entry.matter.id ? null : entry.matter.id
-              "
-            />
-          </div>
-          <p v-if="entry.session.progress" class="timeline-progress">
-            {{ entry.session.progress }}
-          </p>
-          <div v-if="menu === entry.session.id" class="inline-menu">
-            <button
-              class="icon-button"
-              title="详情"
-              aria-label="详情"
-              @click="
-                ui.selectedMatterId = entry.matter.id;
-                menu = null;
-              "
-            >
-              <Icon name="arrow" /></button
-            ><button
-              class="icon-button"
-              :title="entry.session.endTime ? '编辑本次' : '先暂停，再修改时间'"
-              aria-label="编辑本次"
-              :disabled="!entry.session.endTime"
-              @click="
-                editSession(entry.matter, entry.session);
-                menu = null;
-              "
-            >
-              <Icon name="edit" /></button
-            ><button
-              class="icon-button"
-              title="移入回收站"
-              aria-label="移入回收站"
-              @click="
-                remove('delete-session', {
-                  activityId: entry.matter.id,
-                  sessionId: entry.session.id,
-                })
-              "
-            >
-              <Icon name="trash" />
-            </button>
-          </div>
-        </article>
-        <button
-          v-for="blank in blanks"
-          :key="blank.start"
-          class="timeline-gap"
-          :title="`${time(new Date(blank.start).toISOString())}—${time(new Date(blank.end).toISOString())}`"
-          @click="record(undefined, blank.start, blank.end)"
-        >
-          <span
-            >{{ time(new Date(blank.start).toISOString()) }}—{{
-              time(new Date(blank.end).toISOString())
-            }}</span
-          >未记录 · {{ human(blank.end - blank.start) }}
-        </button>
-        <p v-if="!list.length" class="empty-state">这一天，还没有投入记录。</p>
+        <template v-for="row in rows" :key="row.key">
+          <EffortEntry
+            v-if="row.kind === 'entry'"
+            :entry="row.entry"
+            :date="ui.timelineDate"
+            :dimmed="!!focused && focused.id !== row.entry.matter.id"
+            :focused="focused?.id === row.entry.matter.id"
+            @focus="focus(row.entry, $event)"
+            @menu="showMenu($event, row.entry, ui.timelineDate)"
+          />
+          <TimelineGap
+            v-else
+            :row="row"
+            :disabled="!!busy"
+            @record="record(undefined, row.start, row.end)"
+          />
+        </template>
+        <p v-if="!rows.length" class="empty-state">这一天，还没有投入记录。</p>
       </div>
     </template>
+    <ActionMenu
+      v-if="menu"
+      :items="menuItems"
+      :x="menu.x"
+      :y="menu.y"
+      :trigger="menu.trigger"
+      label="投入操作"
+      @select="menuAction"
+      @close="menu = null"
+    />
   </section>
 </template>
+<style scoped>
+.timeline-page {
+  overflow: hidden;
+  position: relative;
+}
+.timeline-toolbar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 51px;
+  height: 51px;
+  box-sizing: border-box;
+  padding: 8px 12px 6px;
+}
+.timeline-date-controls {
+  display: grid;
+  grid-template-columns: 24px minmax(95px, 1fr) 24px auto;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.date-nav {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel);
+  min-width: 24px;
+  height: 29px;
+  padding: 0 5px;
+  font-size: 11px;
+  color: var(--text);
+}
+.timeline-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 10px 8px;
+  min-width: 0;
+}
+.heat-legend {
+  position: absolute;
+  z-index: 20;
+  left: 12px;
+  right: 12px;
+  bottom: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 5px 18px #25332d18;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+  font-size: 9px;
+}
+.heat-legend p {
+  margin-bottom: 6px;
+}
+.heat-levels {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px 8px;
+}
+.heat-levels > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.heat-levels i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.details-fixed {
+  flex: 0 0 auto;
+  padding: 0 12px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.details-heading {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 5px 0;
+}
+.matter-title {
+  display: flex;
+  gap: 7px;
+  justify-content: space-between;
+  align-items: center;
+}
+.matter-title h2 {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.matter-title .timeline-status {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.matter-stats {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 0;
+  padding: 12px 5px;
+  margin: 6px 4px 12px;
+  border-radius: 12px;
+  background: #eaf0e180;
+  text-align: center;
+}
+.matter-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  justify-content: center;
+}
+.matter-stats > div + div {
+  border-left: 1px solid var(--border);
+}
+.matter-stats strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.matter-stats span {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.matter-detail-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 4px 12px 12px 8px;
+}
+.detail-day h3 {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 10px 0 6px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.timeline-focus-summary {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #e2e9d9;
+  border: 1px solid #c5d2bb;
+  border-radius: 8px;
+  padding: 0 7px;
+}
+.timeline-focus-summary > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+}
+.timeline-focus-summary strong {
+  min-width: 0;
+  flex: 1;
+  font-size: 11px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.timeline-focus-summary p {
+  padding-left: 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

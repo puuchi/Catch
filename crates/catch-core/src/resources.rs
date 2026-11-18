@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use url::Url;
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "kebab-case")]
 pub enum Kind {
     File,
@@ -102,7 +102,7 @@ impl Resource {
         next.validate()?;
         Ok(next)
     }
-    fn identity(&self) -> String {
+    pub(crate) fn identity(&self) -> String {
         if self.kind == Kind::Web {
             Url::parse(&self.target)
                 .map(|url| url.to_string())
@@ -126,7 +126,7 @@ pub fn validate_list(resources: &[Resource]) -> Result<()> {
         if !ids.insert(&resource.id) {
             return Err("资料标识重复".into());
         }
-        if !targets.insert(resource.identity()) {
+        if !targets.insert((resource.kind, resource.identity())) {
             return Err("这份资料已经关联".into());
         }
     }

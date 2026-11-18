@@ -142,6 +142,7 @@ export interface EditorDraft {
   deadline: string | null;
   scope: 'once' | 'future';
   original?: Session;
+  resumeToken?: string;
 }
 export interface UiState {
   version: 1;
@@ -152,6 +153,9 @@ export interface UiState {
   selectedMatterId: string | null;
   timelineDate: string;
   focusedMatterId: string | null;
+  timelineFocusMode?: 'soft' | 'only';
+  selectedSessionId?: string | null;
+  selectedSessionDate?: string | null;
   history: boolean;
   activityName: string;
   composer: TodoFields;

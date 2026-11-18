@@ -259,11 +259,15 @@ document.addEventListener('pointerdown', outside);
     aria-controls="growthPanel"
     @click="toggleGrowth"
   >
-    <PlantSprite :plant="growth.plant" :stage="growth.stage" :size="25" /><span
-      >今日投入 <strong>{{ human(growth.investedMs) }}</strong></span
-    ><span v-if="growth.goalMinutes" class="growth-goal">/ {{ growth.goalMinutes }} 分</span
-    ><span v-if="growth.reached" class="growth-check"><Icon name="check" /></span
-    ><span class="spacer" /><Icon name="chevron" />
+    <PlantSprite :plant="growth.plant" :stage="growth.stage" :size="25" />
+    <span class="growth-caption">
+      <span
+        >今日投入 <strong>{{ human(growth.investedMs) }}</strong></span
+      >
+      <span v-if="growth.goalMinutes" class="growth-goal">/ {{ growth.goalMinutes }} 分</span>
+    </span>
+    <span v-if="growth.reached" class="growth-check"><Icon name="check" /></span>
+    <span class="spacer" /><Icon name="chevron" />
   </button>
   <div v-if="message || state?.storageBlocked" class="activity-message" role="status">
     <span>{{
@@ -301,6 +305,7 @@ document.addEventListener('pointerdown', outside);
         <Icon name="trash" />
       </button>
       <button
+        v-if="ui.page === 'todos'"
         :title="ui.page === 'todos' && ui.history ? '返回待办' : '归档'"
         :aria-label="ui.page === 'todos' && ui.history ? '返回待办' : '归档'"
         :aria-pressed="ui.page === 'todos' && ui.history"
@@ -309,6 +314,7 @@ document.addEventListener('pointerdown', outside);
         <Icon name="archive" />
       </button>
     </div>
+    <div id="timeline-tools" class="timeline-footer-tools" aria-label="时间轴工具" />
     <span v-if="isolated" class="local-preview" title="使用独立预览数据，不会修改原版记录"
       >本地预览</span
     ><button @click="quit"><Icon name="power" />退出</button>

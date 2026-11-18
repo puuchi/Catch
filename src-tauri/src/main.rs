@@ -34,6 +34,32 @@ fn minimum_main_size(dpr: f64, scale: f64) -> Option<tauri::PhysicalSize<u32>> {
         (300. * scale).ceil() as u32,
     ))
 }
+fn framed_minimum(
+    content: tauri::PhysicalSize<u32>,
+    inner: tauri::PhysicalSize<u32>,
+    outer: tauri::PhysicalSize<u32>,
+) -> tauri::PhysicalSize<u32> {
+    tauri::PhysicalSize::new(
+        content.width.saturating_add(outer.width.saturating_sub(inner.width)),
+        content.height.saturating_add(outer.height.saturating_sub(inner.height)),
+    )
+}
+// Constraints belong to an HWND, not the process: collapse destroys the WebView.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MainMinimum {
+    hwnd: isize,
+    generation: u64,
+    size: tauri::PhysicalSize<u32>,
+}
+impl MainMinimum {
+    fn correction(self, current: tauri::PhysicalSize<u32>) -> Option<tauri::PhysicalSize<u32>> {
+        let corrected = tauri::PhysicalSize::new(
+            current.width.max(self.size.width),
+            current.height.max(self.size.height),
+        );
+        (corrected != current).then_some(corrected)
+    }
+}
 type Runtime = Mutex<Desktop>;
 struct Desktop {
     service: Service,
@@ -45,6 +71,7 @@ struct Desktop {
     _lock: ProfileLock,
     isolated: bool,
     layout: Value,
+    minimum_size: Option<MainMinimum>,
     pending_import: Option<legacy_import::Pending>,
 }
 #[derive(Clone, Serialize, Deserialize)]
@@ -212,15 +239,16 @@ fn collapse(
     let position = window.outer_position().map_err(|error| error.to_string())?;
     let size = window.inner_size().map_err(|error| error.to_string())?;
     let scale = window.scale_factor().map_err(|error| error.to_string())?;
+    let bubble_position = tauri::PhysicalPosition::new(
+        position.x + (size.width as i32 - native::surface_side(scale)) / 2,
+        position.y,
+    );
     let mut desktop = state.lock().map_err(|_| "状态锁失败")?;
     ensure(&window, &desktop, generation)?;
     desktop.preferences.width = f64::from(size.width) / scale;
     desktop.preferences.height = f64::from(size.height) / scale;
     desktop.preferences.main_position = Some(position);
-    desktop.preferences.bubble_position = Some(tauri::PhysicalPosition::new(
-        position.x + (size.width as i32 - (36. * scale) as i32) / 2,
-        position.y,
-    ));
+    desktop.preferences.bubble_position = Some(bubble_position);
     desktop.disk.write_atomic(
         "catch-preferences.json",
         &serde_json::to_vec(&desktop.preferences).map_err(|error| error.to_string())?,
@@ -229,10 +257,6 @@ fn collapse(
     drop(desktop);
     let handle = app.clone();
     app.run_on_main_thread(move || {
-        let bubble_position = tauri::PhysicalPosition::new(
-            position.x + (size.width as i32 - (36. * scale) as i32) / 2,
-            position.y,
-        );
         if let Err(error) = native::show(&handle, Some(bubble_position)) {
             if let Ok(mut desktop) = handle.state::<Runtime>().lock() {
                 desktop.view.abort_collapse(generation);
@@ -277,17 +301,47 @@ fn report_layout(
         return Err("布局诊断过大".into());
     }
     let dpr = layout["dpr"].as_f64().ok_or("页面像素比例无效")?;
+    let minimum = MainMinimum {
+        hwnd: desktop.hwnd,
+        generation,
+        size: minimum_main_size(dpr, window.scale_factor().map_err(|error| error.to_string())?)
+            .ok_or("页面像素比例无效")?,
+    };
+    let recalibrate = desktop.minimum_size != Some(minimum);
     desktop.layout = layout;
+    // Reserve this calibration before releasing the lock so duplicate layout
+    // reports cannot enqueue competing resizes. Never hold Runtime across native
+    // window calls: their synchronous window events may also need that lock.
+    desktop.minimum_size = Some(minimum);
     drop(desktop);
-    // CSS pixels can differ from native logical pixels under Windows text scaling.
-    // Reserve the verified content width without overriding the user's text scale.
-    let minimum = minimum_main_size(dpr, window.scale_factor().map_err(|error| error.to_string())?)
-        .ok_or("页面像素比例无效")?;
-    window.set_min_size(Some(minimum)).map_err(|error| error.to_string())?;
-    let size = window.inner_size().map_err(|error| error.to_string())?;
-    if size.width < minimum.width {
-        window.set_size(tauri::PhysicalSize::new(minimum.width, size.height.max(minimum.height)))
-            .map_err(|error| error.to_string())?;
+    if recalibrate {
+        let result = (|| -> Result<(), String> {
+            // Ordinary resize reports only update diagnostics. Negotiate once per
+            // HWND/DPI/text scale and only correct an undersized restored window.
+            let inner = window.inner_size().map_err(|error| error.to_string())?;
+            let constraint = if cfg!(target_os = "windows") {
+                // Tao omits hidden frame extents for undecorated windows. Our
+                // transparent HWND still has non-client pixels: include them in
+                // the track constraint instead of correcting every resize.
+                framed_minimum(minimum.size, inner, window.outer_size().map_err(|error| error.to_string())?)
+            } else { minimum.size };
+            window.set_min_size(Some(constraint)).map_err(|error| error.to_string())?;
+            if let Some(corrected) = minimum.correction(inner) {
+                let correction = if cfg!(target_os = "windows") {
+                    framed_minimum(corrected, inner, window.outer_size().map_err(|error| error.to_string())?)
+                } else { corrected };
+                window.set_size(correction).map_err(|error| error.to_string())?;
+            }
+            Ok(())
+        })();
+        if let Err(error) = result {
+            if let Ok(mut desktop) = state.lock() {
+                if desktop.minimum_size == Some(minimum) {
+                    desktop.minimum_size = None;
+                }
+            }
+            return Err(error);
+        }
     }
     diagnostics(&app);
     Ok(())
@@ -562,7 +616,7 @@ pub(crate) fn expand(app: &AppHandle) {
                     let _ = native::fit_main(
                         &main,
                         Some(tauri::PhysicalPosition::new(
-                            position.x - ((preferences.width - 36.) * scale / 2.) as i32,
+                            position.x - (main.inner_size().map(|size| size.width as i32).unwrap_or((preferences.width * scale).round() as i32) - native::surface_side(scale)) / 2,
                             position.y,
                         )),
                     );
@@ -635,7 +689,7 @@ fn main() {
             let now=clock::now();let day=clock::day(now);let id=uuid::Uuid::new_v4().to_string();let service=Service::open(disk.clone(),Context{now,local_day:&day,new_id:&id}).map_err(|error|std::io::Error::other(error.message))?;
             let view=Session::open(disk.clone()).map_err(std::io::Error::other)?;let preferences:Preferences=match disk.read("catch-preferences.json").map_err(std::io::Error::other)?{Some(bytes)=>serde_json::from_slice(&bytes)?,None=>Preferences::default()};
             let preferences=preferences.validated();let isolated=std::env::var_os("CATCH_DATA_DIR").is_some();
-            app.manage(Mutex::new(Desktop{service,view,disk,preferences,hwnd:0,day,_lock:lock,isolated,layout:Value::Null,pending_import:None}));
+            app.manage(Mutex::new(Desktop{service,view,disk,preferences,hwnd:0,day,_lock:lock,isolated,layout:Value::Null,minimum_size:None,pending_import:None}));
             native::install(app.handle()).map_err(std::io::Error::other)?;expand(app.handle());
             let handle=app.handle().clone();std::thread::spawn(move||{let mut ticks=0;while !EXITING.load(Ordering::SeqCst){std::thread::sleep(Duration::from_secs(1));if EXITING.load(Ordering::SeqCst){break;}ticks+=1;let now=clock::now();let day=clock::day(now);
                 let result=(||->Result<Value,String>{let state=handle.state::<Runtime>();let mut desktop=state.lock().map_err(|_|"状态锁失败")?;
@@ -663,7 +717,7 @@ fn main() {
 
 #[cfg(test)]
 mod window_size_tests {
-    use super::minimum_main_size;
+    use super::{framed_minimum, minimum_main_size, MainMinimum, Preferences};
     #[test]
     fn minimum_width_preserves_css_content_at_dpi_and_text_scales() {
         assert_eq!(minimum_main_size(1., 1.).unwrap(), tauri::PhysicalSize::new(260, 300));
@@ -676,5 +730,30 @@ mod window_size_tests {
             assert!(minimum_main_size(value, 1.).is_none());
             assert!(minimum_main_size(1., value).is_none());
         }
+    }
+    #[test]
+    fn constraints_are_cached_per_window_and_physical_minimum() {
+        let minimum = MainMinimum { hwnd: 1, generation: 1, size: minimum_main_size(2.56, 2.).unwrap() };
+        assert_eq!(minimum, MainMinimum { hwnd: 1, generation: 1, size: minimum_main_size(2.56, 2.).unwrap() });
+        assert_ne!(minimum, MainMinimum { generation: 2, ..minimum });
+        assert_ne!(minimum, MainMinimum { hwnd: 2, ..minimum });
+        assert_ne!(minimum, MainMinimum { size: minimum_main_size(2., 2.).unwrap(), ..minimum });
+        assert_eq!(minimum.correction(tauri::PhysicalSize::new(666, 600)), None);
+        assert_eq!(minimum.correction(tauri::PhysicalSize::new(700, 800)), None);
+        assert_eq!(minimum.correction(tauri::PhysicalSize::new(665, 800)), Some(tauri::PhysicalSize::new(666, 800)));
+        assert_eq!(minimum.correction(tauri::PhysicalSize::new(700, 599)), Some(tauri::PhysicalSize::new(700, 600)));
+    }
+    #[test]
+    fn undecorated_track_size_includes_actual_non_client_extents() {
+        let size = tauri::PhysicalSize::new(666, 600);
+        assert_eq!(framed_minimum(size, tauri::PhysicalSize::new(820, 1400), tauri::PhysicalSize::new(846, 1415)), tauri::PhysicalSize::new(692, 615));
+        assert_eq!(framed_minimum(size, tauri::PhysicalSize::new(820, 1400), tauri::PhysicalSize::new(820, 1400)), size);
+        assert_eq!(framed_minimum(size, tauri::PhysicalSize::new(820, 1400), tauri::PhysicalSize::new(800, 1380)), size);
+    }
+    #[test]
+    fn default_width_and_saved_narrow_width_are_not_globally_scaled() {
+        assert_eq!(Preferences::default().width, 320.);
+        assert_eq!(Preferences { width: 260., ..Preferences::default() }.validated().width, 260.);
+        assert_eq!(Preferences { width: 100., ..Preferences::default() }.validated().width, 260.);
     }
 }

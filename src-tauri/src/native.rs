@@ -4,6 +4,13 @@ use std::sync::atomic::{AtomicIsize, Ordering};
 use tauri::{AppHandle, Manager};
 pub struct Surface(AtomicIsize);
 
+// One geometry contract for painting, HWND bounds, hit testing, and the main
+// window's collapse/restore anchor. This is DPI scaling, not a user/global zoom.
+const SURFACE_SIDE: i32 = 64;
+pub fn surface_side(scale: f64) -> i32 {
+    (f64::from(SURFACE_SIDE) * scale).round() as i32
+}
+
 #[cfg(windows)]
 mod windows {
     use super::*;
@@ -246,8 +253,70 @@ mod windows {
         status: Option<Status>,
         size: i32,
     }
+    // The 64-DIP target includes a 4-DIP shadow gutter around a 56-DIP card.
+    const ART_SIDE: usize = 44;
+    fn physical_side(dpi: u32) -> i32 {
+        surface_side(f64::from(dpi.max(96)) / 96.)
+    }
     fn side(hwnd: isize) -> i32 {
-        36 * unsafe { GetDpiForWindow(hwnd) }.max(96) as i32 / 96
+        physical_side(unsafe { GetDpiForWindow(hwnd) })
+    }
+    fn card_distance(x: f64, y: f64) -> f64 {
+        // Rounded rectangle: [4, 60] on both axes, with a 12-DIP radius.
+        let qx = (x - 32.).abs() - 16.;
+        let qy = (y - 32.).abs() - 16.;
+        qx.max(0.).hypot(qy.max(0.)) + qx.max(qy).min(0.) - 12.
+    }
+    fn composite(pixel: &mut [u8], color: [u8; 3], alpha: u8) {
+        // Source-over into the premultiplied BGRA required by UpdateLayeredWindow.
+        let alpha = u32::from(alpha);
+        for channel in 0..3 {
+            pixel[channel] = ((u32::from(color[2 - channel]) * alpha
+                + u32::from(pixel[channel]) * (255 - alpha))
+                / 255) as u8;
+        }
+        pixel[3] = (alpha + u32::from(pixel[3]) * (255 - alpha) / 255) as u8;
+    }
+    fn card_pixels(size: usize) -> Vec<u8> {
+        let scale = size as f64 / f64::from(SURFACE_SIDE);
+        let mut pixels = vec![0_u8; size * size * 4];
+        for y in 0..size {
+            for x in 0..size {
+                let px = (x as f64 + 0.5) / scale;
+                let py = (y as f64 + 0.5) / scale;
+                let pixel = &mut pixels[(y * size + x) * 4..][..4];
+                // Retain the full square hit target, including the shadow gutter.
+                pixel[3] = 1;
+                let shadow = (1. - card_distance(px, py - 1.).max(0.) / 4.)
+                    .clamp(0., 1.)
+                    .powi(2);
+                composite(pixel, [37, 51, 48], (shadow * 30.) as u8);
+                let distance = card_distance(px, py);
+                let coverage = (0.5 - distance * scale).clamp(0., 1.);
+                let vertical = ((py - 4.) / 56.).clamp(0., 1.);
+                // Deliberate software frost: tint, fine grain, rim and sheen.
+                // This per-pixel-alpha WS_EX_LAYERED / UpdateLayeredWindow HWND
+                // is not a supported DWM system-backdrop target. Do not apply an
+                // undocumented accent policy or claim that desktop pixels blur.
+                let grain = ((x * 13 + y * 7) % 5) as f64 - 2.;
+                let color = [
+                    (242. - vertical * 18. + grain) as u8,
+                    (248. - vertical * 15. + grain) as u8,
+                    (245. - vertical * 16. + grain) as u8,
+                ];
+                composite(pixel, color, (coverage * (218. - vertical * 18.)) as u8);
+                let inner = (0.5 - (distance + 1.) * scale).clamp(0., 1.);
+                let border = (coverage - inner).max(0.);
+                composite(
+                    pixel,
+                    [255, 255, 255],
+                    (border * (166. - vertical * 104.)) as u8,
+                );
+                let sheen = (1. - ((py - 5.) / 24.).clamp(0., 1.)).powi(2);
+                composite(pixel, [255, 255, 255], (inner * sheen * 24.) as u8);
+            }
+        }
+        pixels
     }
     fn work_area(point: Point) -> Rect {
         let mut info = Monitor {
@@ -323,29 +392,11 @@ mod windows {
                 },
             )
         };
-        let size = side(hwnd).max(1) as usize;
-        let mut pixels = vec![0_u8; size * size * 4];
-        let scale = size as f64 / 36.;
-        for y in 0..size {
-            for x in 0..size {
-                let distance = ((x as f64 + 0.5 - size as f64 / 2.).powi(2)
-                    + (y as f64 + 0.5 - size as f64 / 2.).powi(2))
-                .sqrt();
-                let coverage = (17.5 * scale + 0.5 - distance).clamp(0., 1.);
-                let alpha = (coverage * 248.) as u32;
-                let color = if distance > 16.4 * scale {
-                    [147_u32, 164, 133]
-                } else {
-                    [249, 248, 238]
-                };
-                let target = (y * size + x) * 4;
-                pixels[target] = (color[2] * alpha / 255) as u8;
-                pixels[target + 1] = (color[1] * alpha / 255) as u8;
-                pixels[target + 2] = (color[0] * alpha / 255) as u8;
-                pixels[target + 3] = alpha.max(1) as u8;
-            }
-        }
-        let art_size = (size * 30 / 36).max(1);
+        let size = key.size as usize;
+        let mut pixels = card_pixels(size);
+        let scale = size as f64 / f64::from(SURFACE_SIDE);
+        // Nearest-neighbor sampling keeps the transparent pixel artwork crisp.
+        let art_size = (size * ART_SIDE / SURFACE_SIDE as usize).max(1);
         let inset = (size - art_size) / 2;
         for y in 0..art_size {
             for x in 0..art_size {
@@ -354,15 +405,15 @@ mod windows {
                     + x * cell / art_size)
                     * 4;
                 let target = ((y + inset) * size + x + inset) * 4;
-                let alpha = u32::from(image.pixels[source + 3]);
-                for channel in 0..3 {
-                    pixels[target + channel] = ((u32::from(image.pixels[source + 2 - channel])
-                        * alpha
-                        + u32::from(pixels[target + channel]) * (255 - alpha))
-                        / 255) as u8;
-                }
-                pixels[target + 3] =
-                    (alpha + u32::from(pixels[target + 3]) * (255 - alpha) / 255) as u8;
+                composite(
+                    &mut pixels[target..target + 4],
+                    [
+                        image.pixels[source],
+                        image.pixels[source + 1],
+                        image.pixels[source + 2],
+                    ],
+                    image.pixels[source + 3],
+                );
             }
         }
         let color = match status {
@@ -370,20 +421,17 @@ mod windows {
             Some(Status::Paused) => [183, 158, 98],
             _ => [156, 163, 175],
         };
-        let radius = 3.5 * scale;
+        let radius = 4. * scale;
         for y in 0..size {
             for x in 0..size {
-                let distance =
-                    ((x as f64 - 31. * scale).powi(2) + (y as f64 - 31. * scale).powi(2)).sqrt();
-                if distance <= radius {
-                    let color = if distance > radius - scale {
-                        [250, 250, 245]
-                    } else {
-                        color
-                    };
-                    pixels[(y * size + x) * 4..(y * size + x) * 4 + 4]
-                        .copy_from_slice(&[color[2], color[1], color[0], 255]);
-                }
+                let distance = ((x as f64 + 0.5 - 52. * scale).powi(2)
+                    + (y as f64 + 0.5 - 51. * scale).powi(2))
+                .sqrt();
+                let pixel = &mut pixels[(y * size + x) * 4..][..4];
+                let rim = (radius + scale + 0.5 - distance).clamp(0., 1.);
+                composite(pixel, [255, 255, 250], (rim * 245.) as u8);
+                let coverage = (radius + 0.5 - distance).clamp(0., 1.);
+                composite(pixel, color, (coverage * 255.) as u8);
             }
         }
         let info = BitmapInfo {
@@ -534,7 +582,16 @@ mod windows {
                 unsafe {
                     GetWindowRect(hwnd, &mut rect);
                 }
-                let size = side(hwnd);
+                // WM_DPICHANGED supplies destination-screen physical coordinates.
+                // During a captured drag, keep the cursor-relative origin instead.
+                if message == 0x02e0 && lp != 0 && context.drag.get().is_none() {
+                    rect = unsafe { *(lp as *const Rect) };
+                }
+                let size = if message == 0x02e0 {
+                    physical_side((wp & 0xffff) as u32)
+                } else {
+                    side(hwnd)
+                };
                 let point = clamp(
                     Point {
                         x: rect.left,
@@ -575,7 +632,7 @@ mod windows {
                     }
                     let dx = cursor.x - drag.cursor.x;
                     let dy = cursor.y - drag.cursor.y;
-                    if drag.moved || dx.abs() + dy.abs() >= 4 {
+                    if drag.moved || dx.abs() + dy.abs() >= (4 * side(hwnd) / SURFACE_SIDE).max(1) {
                         drag.moved = true;
                         let size = side(hwnd);
                         let point = clamp(
@@ -587,7 +644,9 @@ mod windows {
                             size,
                         );
                         unsafe {
-                            SetWindowPos(hwnd, -1, point.x, point.y, size, size, 0x0010);
+                            // A synchronous WM_DPICHANGED owns resizing; do not
+                            // overwrite its new size with the source-screen size.
+                            SetWindowPos(hwnd, -1, point.x, point.y, 0, 0, 0x0010 | 0x0001);
                         }
                         context.drag.set(Some(drag));
                     }
@@ -703,8 +762,8 @@ mod windows {
                 0x80000000 | 0x00c00000 | 0x00080000,
                 120,
                 120,
-                36,
-                36,
+                SURFACE_SIDE,
+                SURFACE_SIDE,
                 0,
                 0,
                 instance,
@@ -733,15 +792,19 @@ mod windows {
         unsafe {
             GetWindowRect(hwnd, &mut rect);
         }
+        let requested = position.map(|p| Point { x: p.x, y: p.y }).unwrap_or(Point {
+            x: rect.left,
+            y: rect.top,
+        });
+        // Move first so a restored position on another monitor establishes its
+        // DPI before calculating the final size and work-area constraints.
+        if unsafe { SetWindowPos(hwnd, -1, requested.x, requested.y, 0, 0, 0x0010 | 0x0001) }
+            == 0
+        {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
         let size = side(hwnd);
-        let point = clamp(
-            position.map(|p| Point { x: p.x, y: p.y }).unwrap_or(Point {
-                x: rect.left,
-                y: rect.top,
-            }),
-            size,
-            size,
-        );
+        let point = clamp(requested, size, size);
         if unsafe { SetWindowPos(hwnd, -1, point.x, point.y, size, size, 0x0040 | 0x0010) } == 0 {
             return Err(std::io::Error::last_os_error().to_string());
         }
@@ -835,6 +898,51 @@ mod windows {
                 wide("Catch").as_ptr(),
                 0x00000004 | 0x00000100 | 0x00000020,
             ) == 6
+        }
+    }
+    #[cfg(test)]
+    mod surface_tests {
+        use super::*;
+
+        #[test]
+        fn logical_size_tracks_monitor_dpi() {
+            for (dpi, expected) in [(0, 64), (96, 64), (120, 80), (144, 96), (192, 128)] {
+                assert_eq!(physical_side(dpi), expected);
+                assert_eq!(physical_side(dpi), surface_side(f64::from(dpi.max(96)) / 96.));
+            }
+        }
+
+        #[test]
+        fn silhouette_is_a_rounded_square() {
+            assert!(card_distance(32., 32.) < 0.);
+            assert_eq!(card_distance(4., 32.), 0.);
+            assert_eq!(card_distance(60., 32.), 0.);
+            assert!(card_distance(4., 4.) > 0.);
+            assert!(card_distance(8., 32.) < 0.);
+        }
+
+        #[test]
+        fn card_is_translucent_premultiplied_and_fully_hittable() {
+            for size in [64, 80, 96, 128] {
+                let pixels = card_pixels(size);
+                assert_eq!(pixels.len(), size * size * 4);
+                for pixel in pixels.as_chunks::<4>().0 {
+                    assert!(pixel[3] > 0);
+                    assert!(pixel[..3].iter().all(|channel| *channel <= pixel[3]));
+                }
+                let center = (size / 2 * size + size / 2) * 4;
+                assert!((190..240).contains(&pixels[center + 3]));
+                assert_eq!(pixels[3], 1);
+            }
+        }
+
+        #[test]
+        fn transparent_art_preserves_the_card() {
+            let mut pixel = [30, 40, 50, 100];
+            composite(&mut pixel, [255, 0, 0], 0);
+            assert_eq!(pixel, [30, 40, 50, 100]);
+            composite(&mut pixel, [81, 137, 76], 255);
+            assert_eq!(pixel, [76, 137, 81, 255]);
         }
     }
 }
