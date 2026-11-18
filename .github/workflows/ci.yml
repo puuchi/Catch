@@ -60,6 +60,7 @@ jobs:
       - run: npm run build
       - run: npm run check
       - run: npm test
+      - run: npm --prefix frontend ci
       - name: Build demo website
         run: node site/tools/build.cjs
       - name: Test demo state
@@ -85,3 +86,4 @@ jobs:
             site/app.js
             site/app.css
             site/assets/
+            site/desktop-demo/

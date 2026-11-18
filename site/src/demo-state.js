@@ -20,24 +20,24 @@ class DemoState {
     const now=this.now()
     let seedTime=null
     this.tracking=new TrackingModel({version:2,sessionVersion:1,checkpointAt:null,activities:[],trash:[]},{now:()=>seedTime ?? this.now(),newId:this.newId})
-    for(const [minutesAgo,minutes,name,progress] of [[102,25,'阅读与思考','记下了三个值得实践的想法'],[65,20,'整理本周计划','选出这周最想完成的几件事']]) {
+    for(const [minutesAgo,minutes,name,progress] of [[102,25,'检查归还区的书','挑出三本需要修补书角的书'],[65,20,'画出借阅流程','确定登记、取书和归还的动线']]) {
       this.tracking.addSession({name,progress,startTime:new Date(now-minutesAgo*60000).toISOString(),endTime:new Date(now-(minutesAgo-minutes)*60000).toISOString()})
     }
     const yesterday=new Date(now)
     yesterday.setDate(yesterday.getDate()-1)
     yesterday.setHours(14,0,0,0)
-    this.tracking.addSession({name:'梳理项目思路',progress:'把想做的功能整理成了三步',startTime:yesterday.toISOString(),endTime:new Date(+yesterday+35*60000).toISOString()})
+    this.tracking.addSession({name:'整理书架的分类',progress:'把儿童读物移到最下面两层',startTime:yesterday.toISOString(),endTime:new Date(+yesterday+35*60000).toISOString()})
     this.todos=[
-      {id:'intro',text:'写好项目介绍',notes:'让第一次看到的人，也能轻松理解',urgent:true,done:false,deadline:null},
-      {id:'read',text:'读完收藏的那篇文章',notes:'留下一两个自己的想法',urgent:false,done:false,deadline:null},
-      {id:'walk',text:'出去走走，换个思路',notes:'',urgent:false,done:false,deadline:null}
+      {id:'intro',text:'写社区书架的借阅指引',notes:'',urgent:false,done:false,deadline:null},
+      {id:'read',text:'给新到的绘本贴标签',notes:'',urgent:false,done:false,deadline:null},
+      {id:'walk',text:'清点待归还的漂流书',notes:'',urgent:false,done:false,deadline:null}
     ]
     seedTime=now-42*60000
-    this.tracking.start('整理参考资料')
+    this.tracking.start('核对周六读书会流程')
     seedTime+=8*60000
     this.tracking.pause()
     seedTime=now-30*60000
-    this.tracking.start('准备下一篇笔记')
+    this.tracking.start('制作借阅登记表')
     seedTime+=6*60000
     this.tracking.pause()
     seedTime=now-16*60000
@@ -46,6 +46,8 @@ class DemoState {
     this.tracking.pause()
     seedTime=null
     this.focusId=this.tracking.paused().find(item=>item.todoId==='intro').id
+    const draft=this.tracking.get(this.focusId)
+    this.tracking.setProgress(draft.id,draft.sessions.at(-1).id,'写好了借还规则，下一步补充开放时间。')
     this.hiddenCompletedId=null
     this.timelineFocus=null
     this.processId=null
@@ -89,11 +91,11 @@ class DemoState {
 
   repeatFor(todo) {return this.repeats.get(todo.repeatId)}
 
-  setRepeat(todo,kind,start,interval) {
+  setRepeat(todo,kind,start,interval,weekdays,monthDay) {
     dayBounds(start)
     if(!Object.hasOwn(repeatNames,kind))throw new Error('请选择重复方式')
     if(kind==='every' && (!Number.isInteger(interval) || interval<1 || interval>3650))throw new Error('间隔天数须为 1–3650')
-    const rule={id:todo.repeatId ?? this.newId(),todoId:todo.id,kind,start,interval}
+    const rule={id:todo.repeatId ?? this.newId(),todoId:todo.id,kind,start,interval,weekdays,monthDay}
     const date=nextRepeatDate(rule)
     rule.next=nextRepeatDate(rule,[this.today,date].sort().at(-1))
     this.repeats.set(rule.id,rule)
@@ -136,8 +138,9 @@ class DemoState {
   get growth() {
     const day=this.growthDays.get(this.today)
     const invested=this.totalOn(this.today)+(day?.simulated ?? 0)
-    const stage=growthThresholds.filter(threshold=>invested>=this.goalMinutes*60000*threshold).length
-    const nextMinutes=stage===4?0:Math.ceil(this.goalMinutes*growthThresholds[stage]-invested/60000)
+    const goal=this.goalMinutes ?? 60
+    const stage=growthThresholds.filter(threshold=>invested>=goal*60000*threshold).length
+    const nextMinutes=stage===4?0:Math.ceil(goal*growthThresholds[stage]-invested/60000)
     return {plant:day?.plant ?? 'sprout',chosen:!!day?.plant,invested,stage,nextMinutes}
   }
 
@@ -152,7 +155,7 @@ class DemoState {
   }
 
   setGoal(minutes) {
-    if(!Number.isInteger(minutes) || minutes<1 || minutes>1440)throw new Error('每日目标须为 1–1440 分钟')
+    if(minutes!==null&&(!Number.isInteger(minutes)||minutes<1||minutes>1440))throw new Error('每日目标须为 1–1440 分钟')
     this.goalMinutes=minutes
   }
 

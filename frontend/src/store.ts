@@ -169,7 +169,8 @@ export async function collapse() {
   try {
     await savePreferences();
     await flushUi();
-    await host.collapse(generation.value, snapshotUi());
+    // The browser preview keeps this view mounted when it is collapsed.
+    if ((await host.collapse(generation.value, snapshotUi())) === false) closing = false;
   } catch (error) {
     closing = false;
     inform(error);
