@@ -798,9 +798,7 @@ mod windows {
         });
         // Move first so a restored position on another monitor establishes its
         // DPI before calculating the final size and work-area constraints.
-        if unsafe { SetWindowPos(hwnd, -1, requested.x, requested.y, 0, 0, 0x0010 | 0x0001) }
-            == 0
-        {
+        if unsafe { SetWindowPos(hwnd, -1, requested.x, requested.y, 0, 0, 0x0010 | 0x0001) } == 0 {
             return Err(std::io::Error::last_os_error().to_string());
         }
         let size = side(hwnd);
@@ -908,7 +906,10 @@ mod windows {
         fn logical_size_tracks_monitor_dpi() {
             for (dpi, expected) in [(0, 64), (96, 64), (120, 80), (144, 96), (192, 128)] {
                 assert_eq!(physical_side(dpi), expected);
-                assert_eq!(physical_side(dpi), surface_side(f64::from(dpi.max(96)) / 96.));
+                assert_eq!(
+                    physical_side(dpi),
+                    surface_side(f64::from(dpi.max(96)) / 96.)
+                );
             }
         }
 

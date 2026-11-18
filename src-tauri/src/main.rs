@@ -26,7 +26,11 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 static EXITING: AtomicBool = AtomicBool::new(false);
 const MIN_CONTENT_WIDTH: f64 = 260.;
 fn minimum_main_size(dpr: f64, scale: f64) -> Option<tauri::PhysicalSize<u32>> {
-    if !dpr.is_finite() || !scale.is_finite() || !(0.5..=16.).contains(&dpr) || !(0.5..=8.).contains(&scale) {
+    if !dpr.is_finite()
+        || !scale.is_finite()
+        || !(0.5..=16.).contains(&dpr)
+        || !(0.5..=8.).contains(&scale)
+    {
         return None;
     }
     Some(tauri::PhysicalSize::new(
@@ -40,8 +44,12 @@ fn framed_minimum(
     outer: tauri::PhysicalSize<u32>,
 ) -> tauri::PhysicalSize<u32> {
     tauri::PhysicalSize::new(
-        content.width.saturating_add(outer.width.saturating_sub(inner.width)),
-        content.height.saturating_add(outer.height.saturating_sub(inner.height)),
+        content
+            .width
+            .saturating_add(outer.width.saturating_sub(inner.width)),
+        content
+            .height
+            .saturating_add(outer.height.saturating_sub(inner.height)),
     )
 }
 // Constraints belong to an HWND, not the process: collapse destroys the WebView.
@@ -304,8 +312,11 @@ fn report_layout(
     let minimum = MainMinimum {
         hwnd: desktop.hwnd,
         generation,
-        size: minimum_main_size(dpr, window.scale_factor().map_err(|error| error.to_string())?)
-            .ok_or("页面像素比例无效")?,
+        size: minimum_main_size(
+            dpr,
+            window.scale_factor().map_err(|error| error.to_string())?,
+        )
+        .ok_or("页面像素比例无效")?,
     };
     let recalibrate = desktop.minimum_size != Some(minimum);
     desktop.layout = layout;
@@ -323,14 +334,30 @@ fn report_layout(
                 // Tao omits hidden frame extents for undecorated windows. Our
                 // transparent HWND still has non-client pixels: include them in
                 // the track constraint instead of correcting every resize.
-                framed_minimum(minimum.size, inner, window.outer_size().map_err(|error| error.to_string())?)
-            } else { minimum.size };
-            window.set_min_size(Some(constraint)).map_err(|error| error.to_string())?;
+                framed_minimum(
+                    minimum.size,
+                    inner,
+                    window.outer_size().map_err(|error| error.to_string())?,
+                )
+            } else {
+                minimum.size
+            };
+            window
+                .set_min_size(Some(constraint))
+                .map_err(|error| error.to_string())?;
             if let Some(corrected) = minimum.correction(inner) {
                 let correction = if cfg!(target_os = "windows") {
-                    framed_minimum(corrected, inner, window.outer_size().map_err(|error| error.to_string())?)
-                } else { corrected };
-                window.set_size(correction).map_err(|error| error.to_string())?;
+                    framed_minimum(
+                        corrected,
+                        inner,
+                        window.outer_size().map_err(|error| error.to_string())?,
+                    )
+                } else {
+                    corrected
+                };
+                window
+                    .set_size(correction)
+                    .map_err(|error| error.to_string())?;
             }
             Ok(())
         })();
@@ -616,7 +643,13 @@ pub(crate) fn expand(app: &AppHandle) {
                     let _ = native::fit_main(
                         &main,
                         Some(tauri::PhysicalPosition::new(
-                            position.x - (main.inner_size().map(|size| size.width as i32).unwrap_or((preferences.width * scale).round() as i32) - native::surface_side(scale)) / 2,
+                            position.x
+                                - (main
+                                    .inner_size()
+                                    .map(|size| size.width as i32)
+                                    .unwrap_or((preferences.width * scale).round() as i32)
+                                    - native::surface_side(scale))
+                                    / 2,
                             position.y,
                         )),
                     );
@@ -720,9 +753,18 @@ mod window_size_tests {
     use super::{framed_minimum, minimum_main_size, MainMinimum, Preferences};
     #[test]
     fn minimum_width_preserves_css_content_at_dpi_and_text_scales() {
-        assert_eq!(minimum_main_size(1., 1.).unwrap(), tauri::PhysicalSize::new(260, 300));
-        assert_eq!(minimum_main_size(2., 2.).unwrap(), tauri::PhysicalSize::new(520, 600));
-        assert_eq!(minimum_main_size(2.56, 2.).unwrap(), tauri::PhysicalSize::new(666, 600));
+        assert_eq!(
+            minimum_main_size(1., 1.).unwrap(),
+            tauri::PhysicalSize::new(260, 300)
+        );
+        assert_eq!(
+            minimum_main_size(2., 2.).unwrap(),
+            tauri::PhysicalSize::new(520, 600)
+        );
+        assert_eq!(
+            minimum_main_size(2.56, 2.).unwrap(),
+            tauri::PhysicalSize::new(666, 600)
+        );
     }
     #[test]
     fn invalid_pixel_ratios_are_rejected() {
@@ -733,27 +775,93 @@ mod window_size_tests {
     }
     #[test]
     fn constraints_are_cached_per_window_and_physical_minimum() {
-        let minimum = MainMinimum { hwnd: 1, generation: 1, size: minimum_main_size(2.56, 2.).unwrap() };
-        assert_eq!(minimum, MainMinimum { hwnd: 1, generation: 1, size: minimum_main_size(2.56, 2.).unwrap() });
-        assert_ne!(minimum, MainMinimum { generation: 2, ..minimum });
+        let minimum = MainMinimum {
+            hwnd: 1,
+            generation: 1,
+            size: minimum_main_size(2.56, 2.).unwrap(),
+        };
+        assert_eq!(
+            minimum,
+            MainMinimum {
+                hwnd: 1,
+                generation: 1,
+                size: minimum_main_size(2.56, 2.).unwrap()
+            }
+        );
+        assert_ne!(
+            minimum,
+            MainMinimum {
+                generation: 2,
+                ..minimum
+            }
+        );
         assert_ne!(minimum, MainMinimum { hwnd: 2, ..minimum });
-        assert_ne!(minimum, MainMinimum { size: minimum_main_size(2., 2.).unwrap(), ..minimum });
+        assert_ne!(
+            minimum,
+            MainMinimum {
+                size: minimum_main_size(2., 2.).unwrap(),
+                ..minimum
+            }
+        );
         assert_eq!(minimum.correction(tauri::PhysicalSize::new(666, 600)), None);
         assert_eq!(minimum.correction(tauri::PhysicalSize::new(700, 800)), None);
-        assert_eq!(minimum.correction(tauri::PhysicalSize::new(665, 800)), Some(tauri::PhysicalSize::new(666, 800)));
-        assert_eq!(minimum.correction(tauri::PhysicalSize::new(700, 599)), Some(tauri::PhysicalSize::new(700, 600)));
+        assert_eq!(
+            minimum.correction(tauri::PhysicalSize::new(665, 800)),
+            Some(tauri::PhysicalSize::new(666, 800))
+        );
+        assert_eq!(
+            minimum.correction(tauri::PhysicalSize::new(700, 599)),
+            Some(tauri::PhysicalSize::new(700, 600))
+        );
     }
     #[test]
     fn undecorated_track_size_includes_actual_non_client_extents() {
         let size = tauri::PhysicalSize::new(666, 600);
-        assert_eq!(framed_minimum(size, tauri::PhysicalSize::new(820, 1400), tauri::PhysicalSize::new(846, 1415)), tauri::PhysicalSize::new(692, 615));
-        assert_eq!(framed_minimum(size, tauri::PhysicalSize::new(820, 1400), tauri::PhysicalSize::new(820, 1400)), size);
-        assert_eq!(framed_minimum(size, tauri::PhysicalSize::new(820, 1400), tauri::PhysicalSize::new(800, 1380)), size);
+        assert_eq!(
+            framed_minimum(
+                size,
+                tauri::PhysicalSize::new(820, 1400),
+                tauri::PhysicalSize::new(846, 1415)
+            ),
+            tauri::PhysicalSize::new(692, 615)
+        );
+        assert_eq!(
+            framed_minimum(
+                size,
+                tauri::PhysicalSize::new(820, 1400),
+                tauri::PhysicalSize::new(820, 1400)
+            ),
+            size
+        );
+        assert_eq!(
+            framed_minimum(
+                size,
+                tauri::PhysicalSize::new(820, 1400),
+                tauri::PhysicalSize::new(800, 1380)
+            ),
+            size
+        );
     }
     #[test]
     fn default_width_and_saved_narrow_width_are_not_globally_scaled() {
         assert_eq!(Preferences::default().width, 320.);
-        assert_eq!(Preferences { width: 260., ..Preferences::default() }.validated().width, 260.);
-        assert_eq!(Preferences { width: 100., ..Preferences::default() }.validated().width, 260.);
+        assert_eq!(
+            Preferences {
+                width: 260.,
+                ..Preferences::default()
+            }
+            .validated()
+            .width,
+            260.
+        );
+        assert_eq!(
+            Preferences {
+                width: 100.,
+                ..Preferences::default()
+            }
+            .validated()
+            .width,
+            260.
+        );
     }
 }

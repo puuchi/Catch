@@ -25,10 +25,29 @@ jobs:
       - run: npm --prefix frontend ci
       - run: npm --prefix frontend run format:check
       - run: npm --prefix frontend test
-      - run: node tools/rust-licenses.cjs
-      - run: npm --prefix frontend run build
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-      - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+      - name: Build Tauri Windows x64 installer
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/artifacts/tauri-ci-target
+        run: .\frontend\node_modules\.bin\tauri.cmd build --ci --no-sign --target x86_64-pc-windows-msvc -- --locked
+      - name: Generate Tauri installer checksum
+        run: |
+          $bundle = 'artifacts/tauri-ci-target/x86_64-pc-windows-msvc/release/bundle/nsis'
+          $installers = @(Get-ChildItem -LiteralPath $bundle -File -Filter '*_x64-setup.exe')
+          if ($installers.Count -ne 1) {
+            throw "Expected one Tauri x64 installer, found $($installers.Count)."
+          }
+          $installer = $installers[0]
+          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content -LiteralPath (Join-Path $bundle 'SHA256SUMS.txt') -Encoding ascii
+      - name: Upload Tauri Windows x64 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Catch-Tauri-Windows-x64
+          if-no-files-found: error
+          path: |
+            artifacts/tauri-ci-target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe
+            artifacts/tauri-ci-target/x86_64-pc-windows-msvc/release/bundle/nsis/SHA256SUMS.txt
   verify:
     runs-on: windows-latest
     steps:
