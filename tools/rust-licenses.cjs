@@ -5,7 +5,7 @@ if(metadata.status!==0)throw Error(metadata.stderr||'cargo metadata failed')
 const graph=JSON.parse(metadata.stdout),packages=new Map(graph.packages.map(p=>[p.id,p])),nodes=new Map(graph.resolve.nodes.map(n=>[n.id,n]))
 const selected=new Set(),visit=id=>{if(selected.has(id))return;selected.add(id);for(const dep of nodes.get(id)?.deps||[])if(dep.dep_kinds.some(k=>k.kind===null))visit(dep.pkg)}
 visit(graph.resolve.root)
-const manifest=[],texts=['Catch Next — resolved Rust dependency licenses, including related code-generation dependencies.\nFonts and plant art retain their separate bundled licenses.\n'],missing=[]
+const manifest=[],texts=['Catch — resolved Rust dependency licenses, including related code-generation dependencies.\nFonts and plant art retain their separate bundled licenses.\n'],missing=[]
 for(const id of [...selected].sort()){
   const pkg=packages.get(id),directory=path.dirname(pkg.manifest_path)
   const files=fs.readdirSync(directory).filter(name=>/^(LICEN[CS]E|COPYING|NOTICE)([._-]|$)/i.test(name)&&fs.statSync(path.join(directory,name)).isFile()).map(name=>path.join(directory,name))

@@ -4,8 +4,42 @@ const {element,compact,timeLabel}=require('./dom')
 module.exports=function mountTimeline(state,announce) {
   const byId=id=>document.getElementById(id)
   const date=byId('timeline-date')
+  const process=byId('demo-process')
+  const overview=byId('demo-timeline-overview')
+
+  function renderProcess(matter) {
+    const back=element('button','demo-secondary','返回时间轴')
+    back.type='button'
+    back.addEventListener('click',()=>{
+      state.processId=null
+      render()
+      byId('today-button').focus({preventScroll:true})
+    })
+    const heading=element('h2','',matter.name)
+    heading.id='demo-process-heading'
+    heading.tabIndex=-1
+    const list=element('ol','demo-process-list')
+    const dateFormat=new Intl.DateTimeFormat('zh-CN',{month:'numeric',day:'numeric'})
+    for(const session of matter.sessions) {
+      const entry=element('li')
+      const day=dateFormat.format(new Date(session.startTime))
+      entry.append(element('strong','',`${day} ${timeLabel(session.startTime)}–${session.endTime?timeLabel(session.endTime):'现在'} · ${compact(duration(session,state.now()))}`))
+      if(session.progress)entry.append(element('p','',session.progress))
+      list.append(entry)
+    }
+    process.replaceChildren(back,heading,element('p','demo-dialog-note',`共 ${matter.sessions.length} 次投入 · ${compact(duration(matter,state.now()))}`),list)
+  }
 
   function render() {
+    const matter=state.processId && state.tracking.get(state.processId)
+    process.hidden=!matter
+    overview.hidden=!!matter
+    if(matter) {
+      if(process.dataset.matterId!==matter.id)renderProcess(matter)
+      process.dataset.matterId=matter.id
+      return
+    }
+    delete process.dataset.matterId
     date.value=state.day
     const visits=state.visits(),bounds=dayBounds(state.day)
     byId('timeline-total').textContent=compact(state.dayTotal())

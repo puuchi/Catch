@@ -5,10 +5,10 @@ on:
     branches: [main]
     paths:
       - site/**
+      - frontend/public/assets/plants/**
       - src/domain/**
       - src/ui/shared/form-validation.*
       - src/ui/tracking/foreground.js
-      - src/ui/sprout/animation.js
       - package.json
       - package-lock.json
       - .github/workflows/pages.yml

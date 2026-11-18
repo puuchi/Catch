@@ -6,6 +6,7 @@ artifacts/
 src/ui/generated/
 site/app.js
 site/app.css
+site/assets/plants/
 *.log
 .env
 .env.*

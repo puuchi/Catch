@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Catch Next",
+  "productName": "Catch",
   "version": "0.1.0",
   "identifier": "io.github.puuchi.catch.next",
   "build": {

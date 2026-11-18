@@ -2,13 +2,11 @@ const {DemoState,duration,clock,statusText}=require('./demo-state')
 const {element,button,compact,timeLabel}=require('./dom')
 const {mountValidation,clearFormErrors}=require('../../src/ui/shared/form-validation')
 const {icon}=require('./icons')
-const mountSprout=require('../../src/ui/sprout/animation')
 const byId=id=>document.getElementById(id)
 const state=new DemoState()
 const stage=byId('demo-stage')
 const appWindow=byId('catch-window')
 const sproutButton=byId('sprout-button')
-const visibilityListeners=new Set()
 let collapsed=false
 let stageVisible=true
 let progressSession=null
@@ -19,11 +17,7 @@ let sproutPosition=null
 mountValidation()
 const timeline=require('./timeline')(state,announce)
 for(const element of document.querySelectorAll('[data-icon]'))element.append(icon(element.dataset.icon))
-
-const sprout=mountSprout({
-  onBubbleVisibility:fn=>{visibilityListeners.add(fn);return ()=>visibilityListeners.delete(fn)},
-  getBubbleVisibility:async()=>collapsed && stageVisible
-})
+const controls=require('./demo-controls')(state,render,announce)
 
 function announce(message) {
   byId('demo-announcement').textContent=message
@@ -38,10 +32,17 @@ function renderTodos() {
     const check=button('check',`${todo.done?'取消完成':'完成'}：${todo.text}`,'todo-check')
     check.setAttribute('aria-pressed',String(todo.done))
     if(!todo.done)check.replaceChildren()
-    check.addEventListener('click',()=>{state.toggleTodo(todo.id);render();announce(todo.done?'待办已完成':'已恢复为未完成')})
+    check.addEventListener('click',()=>{
+      try{state.toggleTodo(todo.id);render();announce(todo.done?'待办已完成':'已恢复为未完成')}
+      catch(error){announce(error.message)}
+    })
     const copy=element('div','todo-copy'),title=element('div','todo-title',todo.text)
     copy.append(title)
     if(todo.notes)copy.append(element('p','',todo.notes))
+    if(todo.deadline)copy.append(element('p','demo-deadline',`安排日期 ${todo.deadline}`))
+    const resources=element('div','demo-resource-list')
+    controls.renderResourceLinks(todo.id,resources)
+    copy.append(resources,controls.todoActions(todo))
     row.append(check,copy)
     if(!todo.done) {
       const play=button('play','开始计时：'+todo.text,'icon-button todo-play')
@@ -70,20 +71,28 @@ function renderCurrent() {
   toggle.hidden=!selected || completed
   byId('end-timer').hidden=!selected || completed
   byId('completed-summary').hidden=!completed
+  byId('close-completed').hidden=!completed
+  const lastProgress=completed?selected.sessions.findLast(item=>item.progress.trim())?.progress:''
+  byId('completed-progress').textContent=lastProgress ?? ''
+  byId('completed-progress').hidden=!lastProgress
   byId('current-visits').textContent=selected?`累计 ${selected.sessions.length} 次投入`:''
+  byId('progress-form').hidden=!selected || completed
+  byId('progress-feedback').hidden=!selected || completed
   byId('next-step').hidden=!selected || completed
   byId('next-step').disabled=!running
   byId('save-progress').disabled=!selected
   byId('progress-input').disabled=!selected
   if(progressSession!==session?.id) {
     byId('progress-input').value=session?.progress || ''
-    byId('progress-feedback').textContent=completed?'结束计时不会自动完成待办。':'Enter 保存进展，右侧箭头进入下一步。'
+    byId('progress-feedback').textContent='Enter 保存进展，右侧箭头进入下一步。'
     progressSession=session?.id
   }
+  byId('current-resources').hidden=!selected
+  controls.renderResourceLinks(selected?.id,byId('current-resource-list'))
   const paused=byId('paused-matters');paused.replaceChildren()
   const others=state.tracking.paused().filter(item=>item.id!==selected?.id)
   byId('background-area').hidden=!others.length
-  byId('background-count').textContent=`${others.length} 件事情，稍后继续`
+  byId('background-count').textContent=`后台 ${others.length}`
   for(const matter of others) {
     const row=element('div','paused-item'),color=element('span','paused-color')
     color.style.backgroundColor=matter.color
@@ -91,7 +100,7 @@ function renderCurrent() {
     const resume=button('play','继续：'+matter.name)
     resume.addEventListener('click',()=>{state.resume(matter.id);render();announce('已继续投入')})
     const end=button('stop','结束：'+matter.name)
-    end.addEventListener('click',()=>{state.end(matter.id);render();announce('已结束后台事项')})
+    end.addEventListener('click',()=>finish(matter))
     row.append(color,copy,resume,end);paused.append(row)
   }
 }
@@ -99,10 +108,8 @@ function renderCurrent() {
 function renderTimeline() {timeline.render()}
 
 function syncSprout() {
-  const running=state.current
-  sprout.update({status:running?'running':state.tracking.paused().length?'paused':'idle',activityId:running?.id})
-  byId('sprout-status').classList.toggle('running',!!running)
-  for(const listener of visibilityListeners)listener(collapsed && stageVisible)
+  byId('sprout-status').classList.toggle('running',!!state.current)
+  controls.renderGrowth()
 }
 
 function render() {
@@ -113,7 +120,7 @@ function render() {
   }
   byId('tab-status').classList.toggle('running',!!state.current)
   renderTodos();renderCurrent();renderTimeline();syncSprout()
-  byId('demo-hint').textContent=collapsed?'单击绿芽展开，也可以把它拖到顺手的位置':state.page==='todos'?'↑ 点一下播放键，开始你的第一段投入':state.page==='current'?'试试暂停、记录进展，或点右上角收起小窗':'点击一段投入，聚焦同一件事'
+  byId('demo-hint').textContent=collapsed?'单击植物展开，也可以把它拖到顺手的位置':state.page==='todos'?'试试关联一份资料，或给待办设为重复':state.page==='current'?'试试暂停、记录进展，或点右上角收起小窗':'点击一段投入，聚焦同一件事'
 }
 
 function selectPage(page,focus=false) {
@@ -145,11 +152,22 @@ byId('start-matter-form').addEventListener('submit',event=>{
   catch(error){announce(error.message)}
 })
 byId('toggle-timer').addEventListener('click',()=>{state.toggleTimer();render();announce(state.current?'正在投入':'已暂停，回来再继续')})
-byId('end-timer').addEventListener('click',()=>{state.end();render();byId('progress-feedback').textContent='结束计时不会自动完成待办。';announce('已结束本事项，待办状态保留')})
-byId('restart-matter').addEventListener('click',()=>{
-  try{state.restart();render();announce('已重新开始，累计时长和历史进展已保留')}
-  catch(error){announce(error.message)}
+function finish(matter) {
+  if(!matter)return
+  const progress=matter.id===state.selected?.id?byId('progress-input').value:undefined
+  const finishWith=completeTodo=>{
+    state.end(matter.id,{completeTodo,progress});render()
+    announce(completeTodo?'已结束计时并完成待办':'已结束计时')
+  }
+  if(state.todos.some(todo=>todo.id===matter.todoId && !todo.done))controls.confirmFinish(finishWith)
+  else finishWith(false)
+}
+byId('end-timer').addEventListener('click',()=>finish(state.selected))
+byId('view-process').addEventListener('click',()=>{
+  state.showProcess();render();byId('demo-process-heading').focus({preventScroll:true});announce('正在查看这件事的投入过程')
 })
+byId('close-completed').addEventListener('click',()=>{state.closeCompleted();render();byId('matter-input').focus()})
+byId('current-resource-button').addEventListener('click',()=>{if(state.selected)controls.openResources(state.selected.id)})
 byId('progress-form').addEventListener('submit',event=>{
   event.preventDefault()
   try{state.progress(byId('progress-input').value);byId('progress-feedback').textContent='已留下这次的进展。';renderTimeline();announce('本次进展已更新到示例时间轴')}
@@ -182,7 +200,7 @@ function collapse() {
   const x=appWindow.offsetLeft+(appWindow.offsetWidth-sproutButton.offsetWidth)/2,y=appWindow.offsetTop+15
   collapsed=true;appWindow.hidden=true;sproutButton.hidden=false
   sproutPosition=place(sproutButton,{x,y})
-  render();announce('收起为绿芽，计时仍按当前状态继续')
+  render();announce('已收起为悬浮植物，计时仍按当前状态继续')
 }
 function expand() {
   if(!collapsed)return
@@ -196,6 +214,12 @@ byId('try-sprout').addEventListener('click',()=>{
   if(!collapsed)collapse()
   else announce('单击演示区域的小绿芽即可展开')
   sproutButton.focus({preventScroll:true})
+})
+document.querySelector('[data-demo-growth]').addEventListener('click',()=>{
+  if(collapsed)expand()
+  selectPage('todos')
+  byId('experience').scrollIntoView({block:'center'})
+  controls.openGrowth()
 })
 for(const action of document.querySelectorAll('[data-demo-view]'))action.addEventListener('click',()=>{
   if(collapsed)expand()
@@ -233,6 +257,7 @@ draggable(sproutButton,sproutButton,true)
 sproutButton.addEventListener('click',event=>{if(event.detail===0)expand()})
 
 byId('reset-demo').addEventListener('click',()=>{
+  controls.reset()
   timeline.closeLegend()
   for(const form of document.forms)clearFormErrors(form)
   byId('paused-matters').hidden=false
@@ -257,6 +282,7 @@ const refresh=setInterval(()=>{
   if(document.hidden || !stageVisible)return
   if(!collapsed && state.page==='current')byId('demo-timer').textContent=state.selected?clock(duration(state.selected)):clock(0)
   if(!collapsed && state.page==='timeline' && state.current)renderTimeline()
+  if(state.current || document.getElementById('demo-growth-dialog').open)syncSprout()
 },1000)
 window.addEventListener('pagehide',()=>clearInterval(refresh),{once:true})
 render()
