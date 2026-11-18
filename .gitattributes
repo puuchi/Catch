@@ -3,6 +3,9 @@
 *.cjs text eol=lf
 *.json text eol=lf
 *.md text eol=lf
+frontend/**/*.ts text eol=lf
+frontend/**/*.vue text eol=lf
+frontend/**/*.css text eol=lf
 *.cmd text eol=crlf
 *.png binary
 *.ico binary
