@@ -30,7 +30,7 @@ node --test site/test/demo-state.test.cjs
 
 ## GitHub Pages
 
-`.github/workflows/pages.yml` 已准备好独立的 Pages 构建与部署流程。启用仓库 Settings → Pages → GitHub Actions 后，推送 `main` 上的网站或共享模块变更会触发部署，也可手动运行工作流。构建只安装前端所需的开发依赖，跳过 Electron 二进制下载；部署写权限只授予部署任务。
+`.github/workflows/pages.yml` 已准备好独立的 Pages 构建与部署流程。启用仓库 Settings → Pages → GitHub Actions 后，推送 `main` 上的网站或共享模块变更会触发部署，也可手动运行工作流。构建只安装前端所需的开发依赖；部署写权限只授予部署任务。
 
 本地查看最终部署目录：
 

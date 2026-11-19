@@ -78,33 +78,6 @@ fn fixture() -> (tempfile::TempDir, Service) {
     .unwrap();
     (dir, service)
 }
-#[test]
-fn import_reloads_service_and_invalidates_pre_import_requests() {
-    use catch_storage::legacy::Source;
-    let (dir, mut service) = fixture();
-    let disk = Arc::new(FileDisk::new(dir.path()).unwrap());
-    let source = Source([
-        None,
-        Some(br#"[{"id":"imported","text":"old","done":false}]"#.to_vec()),
-        None,
-    ]);
-    let imported = service
-        .import_legacy(disk, &source, context("import-test"))
-        .unwrap();
-    assert_eq!(imported.todos.todos[0].id, "imported");
-    assert_eq!(imported.todos.revision, 1);
-    assert_eq!(imported.tracking.revision, 1);
-    assert_eq!(
-        service
-            .execute(start("stale-before-import", 0), context("a"))
-            .unwrap_err()
-            .code,
-        ErrorCode::Conflict
-    );
-    assert!(service
-        .execute(start("fresh-after-import", 1), context("a"))
-        .is_ok());
-}
 fn start(request_id: &str, revision: u64) -> Request {
     Request {
         request_id: request_id.into(),

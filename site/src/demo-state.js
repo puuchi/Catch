@@ -1,8 +1,8 @@
-const {TrackingModel}=require('../../src/domain/tracking/model')
-const {fields,localDay,visibleTodos}=require('../../src/domain/todos')
-const {duration,clock,humanDuration}=require('../../src/domain/tracking/time')
-const {localDate,dayBounds,timelineEntries,durationOpacity}=require('../../src/domain/tracking/time')
-const {foreground,statusText}=require('../../src/ui/tracking/foreground')
+const {TrackingModel}=require('./demo-model/tracking/model')
+const {fields,localDay,visibleTodos}=require('./demo-model/todos')
+const {duration,clock,humanDuration}=require('./demo-model/tracking/time')
+const {localDate,dayBounds,timelineEntries,durationOpacity}=require('./demo-model/tracking/time')
+const {foreground,statusText}=require('./demo-model/foreground')
 const {nextRepeatDate,repeatNames}=require('./repeat')
 
 const plants={sprout:'绿芽',tulip:'郁金香',sunflower:'向日葵',corn:'玉米',strawberry:'草莓'}

@@ -91,7 +91,6 @@ export const host = {
       emit('catch:error', '这是演示资料。桌面版可打开本机文件。');
     }
   },
-  previewLegacy: async () => null,
 };
 
 const interval = window.setInterval(tick, 1000);

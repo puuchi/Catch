@@ -1,5 +1,7 @@
 # Catch：Tauri / Rust 与 Electron 静态对照
 
+> 历史记录。文中的 Electron 路径可在 [v2.0.0 标签](https://github.com/puuchi/Catch/tree/v2.0.0) 查阅。
+
 盘点日期：2026-11-15（Asia/Shanghai）。源码基线：`dad9efa`。
 
 本次只阅读源码、配置和现有测试定义，没有启动软件、运行测试、构建安装包或测量性能。文中的“有”表示存在可追踪的界面 → 命令 → 业务实现，不表示已经通过运行验收。视觉结论来自模板与 CSS，不代表实际渲染截图一致。

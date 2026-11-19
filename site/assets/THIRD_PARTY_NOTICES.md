@@ -16,9 +16,7 @@ Catch includes interface and interaction contributions by jianxunbi (suppermaker
 | Fraunces font | Font authors credited in the bundled OFL file | SIL Open Font License 1.1, `assets/fonts/Fraunces-OFL.txt` |
 | Growing Plant sprite adaptation | Dean Cole, [Growing Plant](https://lottiefiles.com/free-animation/growing-plant-p4PvMFxRbS) | Lottie Simple License (FL 9.13.21), `assets/sprout/LICENSE.txt`; source/hash details in `assets/sprout/SOURCE.json` |
 | Crop sprites | [josehzz](https://opengameart.org/users/josehzz) | CC0, `assets/plants/README.txt`; source details in `assets/plants/SOURCE.json` |
-| Electron runtime | Electron contributors | MIT; `LICENSE.electron.txt` in packaged builds |
-| Chromium and runtime components | Respective contributors | Packaged `LICENSES.chromium.html` |
 
 The plant sprite remains under the Lottie Simple License, including its adaptation. Font and animation files are not relicensed under Catch's MIT license. The application icon is generated from Catch's check mark by `tools/icon.js` and is included under MIT.
 
-Development tools (Electron Builder, esbuild, TypeScript and others) retain the licenses in their packages. They are not runtime npm dependencies shipped as application code. The renderer bundle's generated legal comments must not be removed from a distributed build.
+Development tools (esbuild, TypeScript and others) retain the licenses in their packages. They are not runtime npm dependencies shipped as application code. The renderer bundle's generated legal comments must not be removed from a distributed build.

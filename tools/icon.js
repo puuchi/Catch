@@ -19,5 +19,5 @@ const sizes=[16,32,48,64,128,256],images=sizes.map(png),head=Buffer.alloc(6+16*s
 head.writeUInt16LE(1,2);head.writeUInt16LE(sizes.length,4)
 let offset=head.length
 sizes.forEach((size,index)=>{const i=6+index*16;head[i]=head[i+1]=size===256?0:size;head.writeUInt16LE(1,i+4);head.writeUInt16LE(32,i+6);head.writeUInt32LE(images[index].length,i+8);head.writeUInt32LE(offset,i+12);offset+=images[index].length})
-fs.writeFileSync(path.resolve(__dirname,'../assets/app-icon.ico'),Buffer.concat([head,...images]))
+fs.writeFileSync(path.resolve(__dirname,'../src-tauri/icons/icon.ico'),Buffer.concat([head,...images]))
 fs.writeFileSync(path.resolve(__dirname,'../assets/app-icon.png'),images.at(-1))
