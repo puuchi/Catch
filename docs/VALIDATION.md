@@ -1,5 +1,7 @@
 # Catch 2.0.0 源码与分发验证记录
 
+> 历史记录。文中的 Electron 路径可在 [v2.0.0 标签](https://github.com/puuchi/Catch/tree/v2.0.0) 查阅。
+
 更新日期：2026-11-13（Asia/Shanghai）。环境：Windows 11，Node.js 24.19.0，Electron 45.3.1，Windows x64。
 
 当前源码检查已经通过。2026-11-13 20:25–20:26（北京时间）已重新生成安装版与免安装版，随后完成下述成品检查。

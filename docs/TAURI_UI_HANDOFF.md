@@ -29,7 +29,7 @@
 | Tauri 宿主 | `src-tauri/src/main.rs` |
 | 原生悬浮植物 | `src-tauri/src/native.rs` |
 
-Electron 代码仍在 `src/`，用作已有行为的参考。当前改动接入 Vue、Tauri 2 和 Rust 这套实现。较早的需求评估、两版盘点和样板约定分别见 `docs/REQUIREMENTS_REVIEW_2026-11-15.md`、`docs/TAURI_ELECTRON_COMPARISON.md`、`docs/TODO_INTERACTION_PLAN.md`。这些文件记录过候选方案，涉及最终交互时请以本文件和最新代码为准。
+旧 Electron 源码可在 [v2.0.0 标签](https://github.com/puuchi/Catch/tree/v2.0.0) 查阅。官网的示例计时逻辑在 `site/src/demo-model/`。当前改动接入 Vue、Tauri 2 和 Rust 这套实现。较早的需求评估、两版盘点和样板约定分别见 `docs/REQUIREMENTS_REVIEW_2026-11-15.md`、`docs/TAURI_ELECTRON_COMPARISON.md`、`docs/TODO_INTERACTION_PLAN.md`。这些文件记录过候选方案，涉及最终交互时请以本文件和最新代码为准。
 
 ## 已确认并接入的行为
 

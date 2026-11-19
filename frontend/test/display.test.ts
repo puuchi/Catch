@@ -16,8 +16,8 @@ import {
 } from '../src/display.ts';
 import type { Matter, Todo } from '../src/models.ts';
 const require = createRequire(import.meta.url),
-  original = require('../../src/domain/tracking/time.js'),
-  sessions = require('../../src/domain/tracking/sessions.js');
+  original = require('../../site/src/demo-model/tracking/time.js'),
+  sessions = require('../../site/src/demo-model/tracking/sessions.js');
 const fixture = JSON.parse(
   fs.readFileSync(
     new URL('../../crates/catch-core/tests/fixtures/tracking-parity.json', import.meta.url),

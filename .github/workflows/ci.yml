@@ -49,33 +49,23 @@ jobs:
             artifacts/tauri-ci-target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe
             artifacts/tauri-ci-target/x86_64-pc-windows-msvc/release/bundle/nsis/SHA256SUMS.txt
   verify:
-    runs-on: windows-latest
+    name: Website build and tests
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
       - run: npm ci
-      - run: npm run build
-      - run: npm run check
-      - run: npm test
       - run: npm --prefix frontend ci
       - name: Build demo website
         run: node site/tools/build.cjs
       - name: Test demo state
         run: node --test site/test/*.test.cjs
-      - run: npm run test:electron
-      - run: npm run dist
-      - name: Check packaged executable and legacy data migration
-        run: node test/packaged.cjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Catch-Windows-x64
-          path: |
-            dist/*.exe
-            dist/*.zip
-            dist/SHA256SUMS.txt
       - name: Upload demo website
         uses: actions/upload-artifact@v4
         with:

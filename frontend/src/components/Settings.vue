@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue';
 import PlantSprite from './PlantSprite.vue';
 import Icon from './Icon.vue';
-import LegacyImport from './LegacyImport.vue';
 import { busy, dispatch, growth, preferences, savePreferences, state, ui } from '../store';
 import type { Plant } from '../models';
 withDefaults(defineProps<{ mode?: 'appearance' | 'growth' }>(), { mode: 'appearance' });
@@ -208,6 +207,5 @@ async function setGoal(enabled = true) {
       </div>
     </template>
     <p v-if="error" role="alert" class="editor-error">{{ error }}</p>
-    <LegacyImport v-if="mode === 'appearance'" />
   </section>
 </template>
