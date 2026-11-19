@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Catch",
+  "version": "3.0.0",
+  "identifier": "io.github.puuchi.catch.next",
+  "build": {
+    "beforeDevCommand": "npm --prefix frontend run dev",
+    "devUrl": "http://127.0.0.1:1431",
+    "beforeBuildCommand": "node tools/rust-licenses.cjs && npm --prefix frontend run build",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost",
+      "capabilities": [
+        "main"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "../frontend/public/assets/fonts/*OFL.txt": "licenses/",
+      "../frontend/public/assets/sprout/LICENSE.txt": "licenses/sprout.txt",
+      "../frontend/public/assets/plants/README.txt": "licenses/crops.txt",
+      "../frontend/public/licenses/*.txt": "licenses/"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "languages": [
+          "SimpChinese"
+        ],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

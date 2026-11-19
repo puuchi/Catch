@@ -5,10 +5,9 @@ on:
     branches: [main]
     paths:
       - site/**
+      - frontend/**
       - src/domain/**
-      - src/ui/shared/form-validation.*
       - src/ui/tracking/foreground.js
-      - src/ui/sprout/animation.js
       - package.json
       - package-lock.json
       - .github/workflows/pages.yml
@@ -30,10 +29,14 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
       - name: Install build dependencies
         run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm --prefix frontend ci
       - name: Test demo state
         run: node --test site/test/*.test.cjs
       - name: Build static website

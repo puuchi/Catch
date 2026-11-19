@@ -1,0 +1,1055 @@
+{
+  "defaultFinishRequest": {
+    "expectedRevision": 4,
+    "operation": {
+      "command": {
+        "activityId": "paused",
+        "completeTodo": false,
+        "expectedTodosRevision": 3,
+        "progress": null,
+        "sessionId": null
+      },
+      "group": "finish"
+    },
+    "requestId": "default-finish"
+  },
+  "errors": [
+    {
+      "code": "VALIDATION",
+      "message": "示例错误"
+    },
+    {
+      "code": "CONFLICT",
+      "message": "示例错误"
+    },
+    {
+      "code": "STORAGE_FAILURE",
+      "message": "示例错误"
+    }
+  ],
+  "failureReply": {
+    "error": {
+      "code": "STORAGE_FAILURE",
+      "message": "恢复提示"
+    },
+    "ok": false,
+    "state": {
+      "growth": {
+        "days": {
+          "2026-11-13": {
+            "celebratedAt": "2026-11-13T01:00:00Z",
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": 60,
+            "plant": "tulip"
+          },
+          "2026-11-14": {
+            "celebratedAt": null,
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": null,
+            "plant": "sunflower"
+          },
+          "2026-11-15": {
+            "celebratedAt": null,
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": null,
+            "plant": "corn"
+          },
+          "2026-11-16": {
+            "celebratedAt": null,
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": null,
+            "plant": "strawberry"
+          },
+          "2026-11-17": {
+            "celebratedAt": null,
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": null,
+            "plant": "sprout"
+          }
+        },
+        "goalMinutes": null,
+        "preferredPlant": "sprout",
+        "revision": 0,
+        "version": 1
+      },
+      "recurrences": {
+        "revision": 4,
+        "templates": [
+          {
+            "fields": {
+              "deadline": null,
+              "notes": "",
+              "text": "重复待办",
+              "urgent": false
+            },
+            "id": "daily",
+            "lastEmitted": null,
+            "nextOn": "2026-11-19",
+            "resources": [],
+            "schedule": {
+              "kind": "daily"
+            },
+            "startsOn": "2026-11-18",
+            "stopped": false
+          },
+          {
+            "fields": {
+              "deadline": null,
+              "notes": "",
+              "text": "重复待办",
+              "urgent": false
+            },
+            "id": "weekly",
+            "lastEmitted": null,
+            "nextOn": "2026-11-19",
+            "resources": [],
+            "schedule": {
+              "kind": "weekly",
+              "weekdays": [1, 3, 5]
+            },
+            "startsOn": "2026-11-18",
+            "stopped": false
+          },
+          {
+            "fields": {
+              "deadline": null,
+              "notes": "",
+              "text": "重复待办",
+              "urgent": false
+            },
+            "id": "every",
+            "lastEmitted": null,
+            "nextOn": "2026-11-19",
+            "resources": [],
+            "schedule": {
+              "days": 2,
+              "kind": "every"
+            },
+            "startsOn": "2026-11-18",
+            "stopped": false
+          },
+          {
+            "fields": {
+              "deadline": null,
+              "notes": "",
+              "text": "重复待办",
+              "urgent": false
+            },
+            "id": "monthly",
+            "lastEmitted": null,
+            "nextOn": "2026-11-19",
+            "resources": [],
+            "schedule": {
+              "day": 31,
+              "kind": "monthly"
+            },
+            "startsOn": "2026-11-18",
+            "stopped": false
+          }
+        ],
+        "version": 1
+      },
+      "storageBlocked": true,
+      "todos": {
+        "archive": [
+          {
+            "completedAt": "2026-11-17",
+            "deadline": null,
+            "done": true,
+            "id": "archived",
+            "notes": "",
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "text": "归档待办",
+            "urgent": false
+          }
+        ],
+        "revision": 3,
+        "todos": [
+          {
+            "completedAt": null,
+            "deadline": "2026-11-18",
+            "done": false,
+            "id": "todo",
+            "notes": "备注",
+            "recurrence": {
+              "scheduledOn": "2026-11-18",
+              "templateId": "daily"
+            },
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "text": "阅读",
+            "urgent": true
+          },
+          {
+            "completedAt": null,
+            "deadline": null,
+            "deletedAt": "2026-11-18T00:00:00Z",
+            "done": false,
+            "id": "deleted",
+            "notes": "",
+            "text": "删除的待办",
+            "urgent": false
+          }
+        ]
+      },
+      "tracking": {
+        "activities": [
+          {
+            "color": "#2679e8",
+            "createdAt": "1970-01-01T00:00:00.000Z",
+            "endTime": "1970-01-01T00:00:03.000Z",
+            "id": "completed",
+            "name": "事项0",
+            "nextSessionIndex": 1,
+            "pauseReason": null,
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "segments": [
+              {
+                "end": "1970-01-01T00:00:01.000Z",
+                "start": "1970-01-01T00:00:00.000Z"
+              }
+            ],
+            "sessions": [
+              {
+                "endTime": "1970-01-01T00:00:01.000Z",
+                "id": "completed:0",
+                "progress": "最终进展",
+                "segments": [
+                  {
+                    "end": "1970-01-01T00:00:01.000Z",
+                    "start": "1970-01-01T00:00:00.000Z"
+                  }
+                ],
+                "startTime": "1970-01-01T00:00:00.000Z"
+              }
+            ],
+            "startTime": "1970-01-01T00:00:00.000Z",
+            "status": "completed",
+            "todoId": "todo",
+            "updatedAt": "1970-01-01T00:00:03.000Z"
+          },
+          {
+            "color": "#d58922",
+            "createdAt": "1970-01-01T00:00:01.000Z",
+            "endTime": null,
+            "id": "paused",
+            "name": "事项1",
+            "nextSessionIndex": 1,
+            "pauseReason": "switch",
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "segments": [
+              {
+                "end": "1970-01-01T00:00:02.000Z",
+                "start": "1970-01-01T00:00:01.000Z"
+              }
+            ],
+            "sessions": [
+              {
+                "endTime": "1970-01-01T00:00:02.000Z",
+                "id": "paused:0",
+                "progress": "",
+                "segments": [
+                  {
+                    "end": "1970-01-01T00:00:02.000Z",
+                    "start": "1970-01-01T00:00:01.000Z"
+                  }
+                ],
+                "startTime": "1970-01-01T00:00:01.000Z"
+              }
+            ],
+            "startTime": "1970-01-01T00:00:01.000Z",
+            "status": "paused",
+            "todoId": "todo",
+            "updatedAt": "1970-01-01T00:00:02.000Z"
+          },
+          {
+            "color": "#26965a",
+            "createdAt": "1970-01-01T00:00:02.000Z",
+            "endTime": null,
+            "id": "running",
+            "name": "事项2",
+            "nextSessionIndex": 1,
+            "pauseReason": null,
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "segments": [
+              {
+                "end": null,
+                "start": "1970-01-01T00:00:02.000Z"
+              }
+            ],
+            "sessions": [
+              {
+                "endTime": null,
+                "id": "running:0",
+                "progress": "",
+                "segments": [
+                  {
+                    "end": null,
+                    "start": "1970-01-01T00:00:02.000Z"
+                  }
+                ],
+                "startTime": "1970-01-01T00:00:02.000Z"
+              }
+            ],
+            "startTime": "1970-01-01T00:00:02.000Z",
+            "status": "running",
+            "todoId": "todo",
+            "updatedAt": "1970-01-01T00:00:02.000Z"
+          }
+        ],
+        "checkpointAt": "1970-01-01T00:00:03.000Z",
+        "revision": 4,
+        "sessionVersion": 1,
+        "trash": [
+          {
+            "activity": {
+              "color": "#2679e8",
+              "createdAt": "1970-01-01T00:00:00.000Z",
+              "endTime": "1970-01-01T00:00:03.000Z",
+              "id": "completed",
+              "name": "事项0",
+              "nextSessionIndex": 1,
+              "pauseReason": null,
+              "resources": [
+                {
+                  "id": "file",
+                  "kind": "file",
+                  "target": "D:\\资料\\阅读.pdf",
+                  "title": "阅读.pdf"
+                },
+                {
+                  "id": "folder",
+                  "kind": "folder",
+                  "target": "D:\\资料",
+                  "title": "目录"
+                },
+                {
+                  "id": "web",
+                  "kind": "web",
+                  "target": "https://example.com",
+                  "title": "参考页面"
+                }
+              ],
+              "segments": [
+                {
+                  "end": "1970-01-01T00:00:01.000Z",
+                  "start": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "sessions": [
+                {
+                  "endTime": "1970-01-01T00:00:01.000Z",
+                  "id": "completed:0",
+                  "progress": "最终进展",
+                  "segments": [
+                    {
+                      "end": "1970-01-01T00:00:01.000Z",
+                      "start": "1970-01-01T00:00:00.000Z"
+                    }
+                  ],
+                  "startTime": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "startTime": "1970-01-01T00:00:00.000Z",
+              "status": "completed",
+              "todoId": "todo",
+              "updatedAt": "1970-01-01T00:00:03.000Z"
+            },
+            "deletedAt": "1970-01-01T00:00:04.000Z",
+            "id": "trash-matter",
+            "kind": "matter"
+          },
+          {
+            "activity": {
+              "color": "#2679e8",
+              "createdAt": "1970-01-01T00:00:00.000Z",
+              "endTime": "1970-01-01T00:00:03.000Z",
+              "id": "completed",
+              "name": "事项0",
+              "nextSessionIndex": 1,
+              "pauseReason": null,
+              "resources": [
+                {
+                  "id": "file",
+                  "kind": "file",
+                  "target": "D:\\资料\\阅读.pdf",
+                  "title": "阅读.pdf"
+                },
+                {
+                  "id": "folder",
+                  "kind": "folder",
+                  "target": "D:\\资料",
+                  "title": "目录"
+                },
+                {
+                  "id": "web",
+                  "kind": "web",
+                  "target": "https://example.com",
+                  "title": "参考页面"
+                }
+              ],
+              "segments": [
+                {
+                  "end": "1970-01-01T00:00:01.000Z",
+                  "start": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "sessions": [
+                {
+                  "endTime": "1970-01-01T00:00:01.000Z",
+                  "id": "completed:0",
+                  "progress": "最终进展",
+                  "segments": [
+                    {
+                      "end": "1970-01-01T00:00:01.000Z",
+                      "start": "1970-01-01T00:00:00.000Z"
+                    }
+                  ],
+                  "startTime": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "startTime": "1970-01-01T00:00:00.000Z",
+              "status": "completed",
+              "todoId": "todo",
+              "updatedAt": "1970-01-01T00:00:03.000Z"
+            },
+            "deletedAt": "1970-01-01T00:00:04.000Z",
+            "id": "trash-session",
+            "kind": "session",
+            "session": {
+              "endTime": "1970-01-01T00:00:01.000Z",
+              "id": "completed:0",
+              "progress": "最终进展",
+              "segments": [
+                {
+                  "end": "1970-01-01T00:00:01.000Z",
+                  "start": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "startTime": "1970-01-01T00:00:00.000Z"
+            }
+          }
+        ],
+        "version": 2
+      },
+      "trackingNotice": "恢复提示"
+    }
+  },
+  "finishRequest": {
+    "expectedRevision": 4,
+    "operation": {
+      "command": {
+        "activityId": "paused",
+        "completeTodo": true,
+        "expectedTodosRevision": 3,
+        "progress": "已整理",
+        "sessionId": "paused:0"
+      },
+      "group": "finish"
+    },
+    "requestId": "finish"
+  },
+  "reply": {
+    "growth": {
+      "celebrated": false,
+      "day": "2026-11-18",
+      "goalMinutes": 60,
+      "investedMs": 60000,
+      "plant": "tulip",
+      "reached": false,
+      "selected": true,
+      "stage": 1
+    },
+    "now": 60000,
+    "ok": true,
+    "state": {
+      "growth": {
+        "days": {
+          "2026-11-13": {
+            "celebratedAt": "2026-11-13T01:00:00Z",
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": 60,
+            "plant": "tulip"
+          },
+          "2026-11-14": {
+            "celebratedAt": null,
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": null,
+            "plant": "sunflower"
+          },
+          "2026-11-15": {
+            "celebratedAt": null,
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": null,
+            "plant": "corn"
+          },
+          "2026-11-16": {
+            "celebratedAt": null,
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": null,
+            "plant": "strawberry"
+          },
+          "2026-11-17": {
+            "celebratedAt": null,
+            "chosenAt": "2026-11-13T00:00:00Z",
+            "goalOnCelebration": null,
+            "plant": "sprout"
+          }
+        },
+        "goalMinutes": 60,
+        "preferredPlant": "sprout",
+        "revision": 0,
+        "version": 1
+      },
+      "recurrences": {
+        "revision": 4,
+        "templates": [
+          {
+            "fields": {
+              "deadline": null,
+              "notes": "",
+              "text": "重复待办",
+              "urgent": false
+            },
+            "id": "daily",
+            "lastEmitted": null,
+            "nextOn": "2026-11-19",
+            "resources": [],
+            "schedule": {
+              "kind": "daily"
+            },
+            "startsOn": "2026-11-18",
+            "stopped": false
+          },
+          {
+            "fields": {
+              "deadline": null,
+              "notes": "",
+              "text": "重复待办",
+              "urgent": false
+            },
+            "id": "weekly",
+            "lastEmitted": null,
+            "nextOn": "2026-11-19",
+            "resources": [],
+            "schedule": {
+              "kind": "weekly",
+              "weekdays": [1, 3, 5]
+            },
+            "startsOn": "2026-11-18",
+            "stopped": false
+          },
+          {
+            "fields": {
+              "deadline": null,
+              "notes": "",
+              "text": "重复待办",
+              "urgent": false
+            },
+            "id": "every",
+            "lastEmitted": null,
+            "nextOn": "2026-11-19",
+            "resources": [],
+            "schedule": {
+              "days": 2,
+              "kind": "every"
+            },
+            "startsOn": "2026-11-18",
+            "stopped": false
+          },
+          {
+            "fields": {
+              "deadline": null,
+              "notes": "",
+              "text": "重复待办",
+              "urgent": false
+            },
+            "id": "monthly",
+            "lastEmitted": null,
+            "nextOn": "2026-11-19",
+            "resources": [],
+            "schedule": {
+              "day": 31,
+              "kind": "monthly"
+            },
+            "startsOn": "2026-11-18",
+            "stopped": false
+          }
+        ],
+        "version": 1
+      },
+      "storageBlocked": false,
+      "todos": {
+        "archive": [
+          {
+            "completedAt": "2026-11-17",
+            "deadline": null,
+            "done": true,
+            "id": "archived",
+            "notes": "",
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "text": "归档待办",
+            "urgent": false
+          }
+        ],
+        "revision": 3,
+        "todos": [
+          {
+            "completedAt": null,
+            "deadline": "2026-11-18",
+            "done": false,
+            "id": "todo",
+            "notes": "备注",
+            "recurrence": {
+              "scheduledOn": "2026-11-18",
+              "templateId": "daily"
+            },
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "text": "阅读",
+            "urgent": true
+          },
+          {
+            "completedAt": null,
+            "deadline": null,
+            "deletedAt": "2026-11-18T00:00:00Z",
+            "done": false,
+            "id": "deleted",
+            "notes": "",
+            "text": "删除的待办",
+            "urgent": false
+          }
+        ]
+      },
+      "tracking": {
+        "activities": [
+          {
+            "color": "#2679e8",
+            "createdAt": "1970-01-01T00:00:00.000Z",
+            "endTime": "1970-01-01T00:00:03.000Z",
+            "id": "completed",
+            "name": "事项0",
+            "nextSessionIndex": 1,
+            "pauseReason": null,
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "segments": [
+              {
+                "end": "1970-01-01T00:00:01.000Z",
+                "start": "1970-01-01T00:00:00.000Z"
+              }
+            ],
+            "sessions": [
+              {
+                "endTime": "1970-01-01T00:00:01.000Z",
+                "id": "completed:0",
+                "progress": "最终进展",
+                "segments": [
+                  {
+                    "end": "1970-01-01T00:00:01.000Z",
+                    "start": "1970-01-01T00:00:00.000Z"
+                  }
+                ],
+                "startTime": "1970-01-01T00:00:00.000Z"
+              }
+            ],
+            "startTime": "1970-01-01T00:00:00.000Z",
+            "status": "completed",
+            "todoId": "todo",
+            "updatedAt": "1970-01-01T00:00:03.000Z"
+          },
+          {
+            "color": "#d58922",
+            "createdAt": "1970-01-01T00:00:01.000Z",
+            "endTime": null,
+            "id": "paused",
+            "name": "事项1",
+            "nextSessionIndex": 1,
+            "pauseReason": "switch",
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "segments": [
+              {
+                "end": "1970-01-01T00:00:02.000Z",
+                "start": "1970-01-01T00:00:01.000Z"
+              }
+            ],
+            "sessions": [
+              {
+                "endTime": "1970-01-01T00:00:02.000Z",
+                "id": "paused:0",
+                "progress": "",
+                "segments": [
+                  {
+                    "end": "1970-01-01T00:00:02.000Z",
+                    "start": "1970-01-01T00:00:01.000Z"
+                  }
+                ],
+                "startTime": "1970-01-01T00:00:01.000Z"
+              }
+            ],
+            "startTime": "1970-01-01T00:00:01.000Z",
+            "status": "paused",
+            "todoId": "todo",
+            "updatedAt": "1970-01-01T00:00:02.000Z"
+          },
+          {
+            "color": "#26965a",
+            "createdAt": "1970-01-01T00:00:02.000Z",
+            "endTime": null,
+            "id": "running",
+            "name": "事项2",
+            "nextSessionIndex": 1,
+            "pauseReason": null,
+            "resources": [
+              {
+                "id": "file",
+                "kind": "file",
+                "target": "D:\\资料\\阅读.pdf",
+                "title": "阅读.pdf"
+              },
+              {
+                "id": "folder",
+                "kind": "folder",
+                "target": "D:\\资料",
+                "title": "目录"
+              },
+              {
+                "id": "web",
+                "kind": "web",
+                "target": "https://example.com",
+                "title": "参考页面"
+              }
+            ],
+            "segments": [
+              {
+                "end": null,
+                "start": "1970-01-01T00:00:02.000Z"
+              }
+            ],
+            "sessions": [
+              {
+                "endTime": null,
+                "id": "running:0",
+                "progress": "",
+                "segments": [
+                  {
+                    "end": null,
+                    "start": "1970-01-01T00:00:02.000Z"
+                  }
+                ],
+                "startTime": "1970-01-01T00:00:02.000Z"
+              }
+            ],
+            "startTime": "1970-01-01T00:00:02.000Z",
+            "status": "running",
+            "todoId": "todo",
+            "updatedAt": "1970-01-01T00:00:02.000Z"
+          }
+        ],
+        "checkpointAt": "1970-01-01T00:00:03.000Z",
+        "revision": 4,
+        "sessionVersion": 1,
+        "trash": [
+          {
+            "activity": {
+              "color": "#2679e8",
+              "createdAt": "1970-01-01T00:00:00.000Z",
+              "endTime": "1970-01-01T00:00:03.000Z",
+              "id": "completed",
+              "name": "事项0",
+              "nextSessionIndex": 1,
+              "pauseReason": null,
+              "resources": [
+                {
+                  "id": "file",
+                  "kind": "file",
+                  "target": "D:\\资料\\阅读.pdf",
+                  "title": "阅读.pdf"
+                },
+                {
+                  "id": "folder",
+                  "kind": "folder",
+                  "target": "D:\\资料",
+                  "title": "目录"
+                },
+                {
+                  "id": "web",
+                  "kind": "web",
+                  "target": "https://example.com",
+                  "title": "参考页面"
+                }
+              ],
+              "segments": [
+                {
+                  "end": "1970-01-01T00:00:01.000Z",
+                  "start": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "sessions": [
+                {
+                  "endTime": "1970-01-01T00:00:01.000Z",
+                  "id": "completed:0",
+                  "progress": "最终进展",
+                  "segments": [
+                    {
+                      "end": "1970-01-01T00:00:01.000Z",
+                      "start": "1970-01-01T00:00:00.000Z"
+                    }
+                  ],
+                  "startTime": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "startTime": "1970-01-01T00:00:00.000Z",
+              "status": "completed",
+              "todoId": "todo",
+              "updatedAt": "1970-01-01T00:00:03.000Z"
+            },
+            "deletedAt": "1970-01-01T00:00:04.000Z",
+            "id": "trash-matter",
+            "kind": "matter"
+          },
+          {
+            "activity": {
+              "color": "#2679e8",
+              "createdAt": "1970-01-01T00:00:00.000Z",
+              "endTime": "1970-01-01T00:00:03.000Z",
+              "id": "completed",
+              "name": "事项0",
+              "nextSessionIndex": 1,
+              "pauseReason": null,
+              "resources": [
+                {
+                  "id": "file",
+                  "kind": "file",
+                  "target": "D:\\资料\\阅读.pdf",
+                  "title": "阅读.pdf"
+                },
+                {
+                  "id": "folder",
+                  "kind": "folder",
+                  "target": "D:\\资料",
+                  "title": "目录"
+                },
+                {
+                  "id": "web",
+                  "kind": "web",
+                  "target": "https://example.com",
+                  "title": "参考页面"
+                }
+              ],
+              "segments": [
+                {
+                  "end": "1970-01-01T00:00:01.000Z",
+                  "start": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "sessions": [
+                {
+                  "endTime": "1970-01-01T00:00:01.000Z",
+                  "id": "completed:0",
+                  "progress": "最终进展",
+                  "segments": [
+                    {
+                      "end": "1970-01-01T00:00:01.000Z",
+                      "start": "1970-01-01T00:00:00.000Z"
+                    }
+                  ],
+                  "startTime": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "startTime": "1970-01-01T00:00:00.000Z",
+              "status": "completed",
+              "todoId": "todo",
+              "updatedAt": "1970-01-01T00:00:03.000Z"
+            },
+            "deletedAt": "1970-01-01T00:00:04.000Z",
+            "id": "trash-session",
+            "kind": "session",
+            "session": {
+              "endTime": "1970-01-01T00:00:01.000Z",
+              "id": "completed:0",
+              "progress": "最终进展",
+              "segments": [
+                {
+                  "end": "1970-01-01T00:00:01.000Z",
+                  "start": "1970-01-01T00:00:00.000Z"
+                }
+              ],
+              "startTime": "1970-01-01T00:00:00.000Z"
+            }
+          }
+        ],
+        "version": 2
+      },
+      "trackingNotice": null
+    }
+  }
+}

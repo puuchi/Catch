@@ -4,24 +4,22 @@
   <p><strong>悬浮在桌面的待办与计时工具，让计划和投入都看得见。</strong></p>
   <p>Windows 10 / 11 · 64 位 · 本地保存 · 无需注册</p>
   <p>
-    <a href="https://github.com/puuchi/Catch/releases/download/v2.0.0/Catch-2.0.0-x64-win.exe"><img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20%E7%89%88-2e5a49?style=for-the-badge&amp;labelColor=25332d" alt="下载 Windows 版" height="36" align="middle"></a>
+    <a href="#下载与安装"><img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20%E7%89%88-2e5a49?style=for-the-badge&amp;labelColor=25332d" alt="下载 Windows 版" height="36" align="middle"></a>
     <a href="https://puuchi.github.io/Catch/"><img src="https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E4%BD%93%E9%AA%8C-5b7f5d?style=for-the-badge&amp;labelColor=25332d" alt="在线体验 Catch" height="36" align="middle"></a>
-    <a href="https://github.com/puuchi/Catch/releases/download/v2.0.0/Catch-2.0.0-x64-win.zip"><img src="https://img.shields.io/badge/%E5%85%8D%E5%AE%89%E8%A3%85%E7%89%88-68776f?style=flat-square" alt="下载免安装版" height="24" align="middle"></a>
     <a href="#快速上手"><img src="https://img.shields.io/badge/%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B-68776f?style=flat-square" alt="快速上手指南" height="24" align="middle"></a>
   </p>
   <p>
-    <a href="https://github.com/puuchi/Catch/releases/latest"><img src="https://img.shields.io/github/v/release/puuchi/Catch?style=flat&amp;label=version&amp;color=2e5a49" alt="最新发布版本"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2e5a49?style=flat" alt="许可证：MIT"></a>
     <a href="#下载与安装"><img src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011%20x64-0078D4?style=flat" alt="平台：Windows 10 / 11 x64"></a>
   </p>
 </div>
 
 <p align="center">
-  <a href="https://puuchi.github.io/Catch/"><img src="docs/screenshots/todos.png" width="240" alt="待办：记下要做的事，补充备注和紧急标记"></a>
+  <a href="https://puuchi.github.io/Catch/"><img src="docs/screenshots/todos.png" width="240" alt="待办：记录任务、关联资料和设置重复"></a>
   <a href="https://puuchi.github.io/Catch/"><img src="docs/screenshots/current.png" width="240" alt="正在做：计时，并记录本次进展"></a>
   <a href="https://puuchi.github.io/Catch/"><img src="docs/screenshots/timeline.png" width="240" alt="时间轴：按日期回看实际投入"></a>
 </p>
-<p align="center"><sub>点击图片或<a href="https://puuchi.github.io/Catch/">在线体验</a>，打开部分功能的交互演示；完整体验请下载桌面版。图片与演示均使用示例数据。</sub></p>
+<p align="center"><sub>截图来自与桌面版共用界面的 Tauri 演示，使用示例数据。</sub></p>
 
 准备写一份方案，先把它记成待办。开始时点一下播放键，中途切去处理别的事就暂停或切换，回来继续，把本次进展留下。一天结束，再从时间轴回看自己真正投入了什么。
 
@@ -29,63 +27,60 @@ Catch 把这几个动作放在同一个桌面小窗里：**记下要做的事，
 
 ## 用 Catch 做什么
 
-- **随手记待办** — 记录要做的事，补充备注、标记加急或设定截止日期，完成后可回看历史。
-- **一次专心一件事** — 一个事项在前台计时，其他事项可以暂停、稍后继续；也可以不建待办，直接开始计时。
+- **随手记待办** — 记录要做的事，补充备注和截止日期，也可以设置重复。
+- **把相关资料放在一起** — 给待办或事项关联文件、文件夹和网页，从记录里直接打开。
+- **一次专心一件事** — 一个事项在前台计时，其他事项可以暂停、稍后继续。也可以直接开始计时。
 - **留住每次进展** — 写下本次做到了哪里，用“下一步”开始同一事项的下一次投入。
 - **看见时间的去向** — 按日期查看时间轴、展开事项详情，支持补录和修正记录。
-- **收起是一株小绿芽** — 暂时用不到窗口时，收起为可拖动的绿芽；计时状态会通过动画反馈。
+- **看着植物长大** — 在「今日投入」选一株植物，它会随有效投入逐步成长。收起窗口后，植物留在桌面上。
 
 ## 下载与安装
 
-适用于 **Windows 10 / 11，64 位（x64）**。日常使用无需安装 Node.js，也无需注册账号或联网。
+适用于 **Windows 10 / 11，64 位（x64）**。双击 `.exe` 安装包，再从开始菜单打开 Catch。系统缺少 WebView2 时，首次安装会联网下载。安装后可以离线使用，无需注册账号。
 
-| 版本 | 使用方式 |
-| --- | --- |
-| **[Windows 安装版](https://github.com/puuchi/Catch/releases/download/v2.0.0/Catch-2.0.0-x64-win.exe)** · 推荐 | 下载 `.exe`，双击按提示安装，再从桌面或开始菜单打开 Catch。 |
-| **[免安装版](https://github.com/puuchi/Catch/releases/download/v2.0.0/Catch-2.0.0-x64-win.zip)** | 下载 `.zip`，完整解压后运行 `Catch.exe`。移动时请保留整个解压目录。 |
-
-其他版本和校验文件见 [Releases](https://github.com/puuchi/Catch/releases)。
+- [下载 Catch v3.0.0 Windows x64 安装包](https://github.com/puuchi/Catch/releases/download/v3.0.0/Catch_3.0.0_x64-setup.exe)
+- [SHA-256 校验文件](https://github.com/puuchi/Catch/releases/download/v3.0.0/SHA256SUMS.txt) · [更新说明](https://github.com/puuchi/Catch/releases/tag/v3.0.0)
 
 > 当前安装包尚未签名，Windows 可能显示“未知发布者”或信誉提示。请核对下载来源，需要时对照 Release 中的 `SHA256SUMS.txt` 检查文件。
 
 ## 快速上手
 
-1. **记下来**：在待办输入框输入内容，按 Enter 创建；也可以先补充备注、紧急标记和截止日期。
+1. **记下来**：在待办输入框输入内容，按 Enter 创建。也可以先补充备注、紧急标记和截止日期。
 2. **开始做**：点击待办旁的播放按钮开始计时，或在“正在做”中直接输入事项名称并开始。
-3. **留个进展**：输入本次进展并按 Enter 保存；需要分步骤记录时，点击“下一步”。
+3. **留个进展**：输入本次进展并按 Enter 保存。需要分步骤记录时，点击「下一步」。
 4. **回头看看**：在“时间轴”切换日期、查看投入记录，需要时补录或修改。
 
-**结束计时与完成待办是两个独立动作。** 结束投入后，是否勾选完成由你决定。
+结束与待办关联的计时时，可以选择「仅结束」或「结束并完成待办」。
 
 | 想做什么 | 怎么操作 |
 | --- | --- |
-| 修改待办 | 点击待办文字，编辑后确认；Esc 取消。 |
+| 修改待办 | 双击待办文字，编辑后确认。按 Esc 取消。 |
+| 关联资料 | 点击待办或事项的「资料」旁的加号。 |
+| 设置重复 | 打开待办的三点菜单，选择「设置重复」。 |
 | 暂停或继续 | 使用“正在做”中的暂停按钮，或后台事项的继续按钮。 |
-| 收起或展开 | 点击右上角圆点收起为绿芽；单击绿芽展开，拖动可改变位置。 |
+| 收起或展开 | 点击右上角圆点收起为悬浮植物。单击植物展开，拖动可改变位置。 |
 | 找回误删记录 | 从窗口底部打开回收站，恢复待办、事项或单次投入。 |
-| 退出应用 | 点击底部“退出”，或右键绿芽选择“关闭”；计时中会询问是否暂停并退出。 |
+| 退出应用 | 点击底部「退出」，或右键悬浮植物选择「退出」。计时中会询问是否暂停并退出。 |
 
 ## 数据与常见问题
 
 <details>
 <summary><strong>我的记录存在哪里？</strong></summary>
 
-记录保存在本机。按 Win + R，粘贴以下路径即可打开数据目录：
+记录保存在本机。按 Win + R 后粘贴下面的路径即可打开数据目录。
 
 ```text
-%APPDATA%\float-todo
+%APPDATA%\io.github.puuchi.catch.next
 ```
 
-这个目录名为兼容旧版保留。主要文件为 `todos.json`、`archive.json`、`activity-log.json` 和 `config.json`，分别保存待办、完成历史、投入记录和设置。数据与应用安装目录分开存放。
+待办、归档、投入记录、植物成长与设置都保存在这个目录，数据与应用安装目录分开存放。
 
 </details>
 
 <details>
 <summary><strong>怎样备份和更新？</strong></summary>
 
-先正常退出 Catch，再复制整个数据目录进行备份。更新时退出旧版本，然后安装新版本或换用新的完整解压目录。当前没有自动更新。
-
-卸载配置不删除用户数据；移动应用文件夹也不会搬走数据目录。不要让两个版本同时写同一份数据，也不要在应用运行中手工修改 JSON 文件。
+先正常退出 Catch，再复制整个数据目录进行备份。更新时双击新安装包。若需要回退到仅支持旧回执格式的程序，应同时恢复升级前的完整数据目录。[回执与迁移说明](docs/FINISH_REPLAY.md)
 
 </details>
 
@@ -100,31 +95,40 @@ Catch 把这几个动作放在同一个桌面小窗里：**记下要做的事，
 
 ## 从源码运行
 
-需要 **Node.js 22.12+**，推荐 Node.js 24；首次安装开发依赖需要联网。
+需要 Windows x64、**Node.js 24**、当前稳定版 Rust、Visual Studio C++ Build Tools（含 Windows SDK）和 WebView2。首次安装开发依赖需要联网。
 
 ```powershell
 git clone https://github.com/puuchi/Catch.git
 cd Catch
-npm ci
-npm start
+npm.cmd --prefix frontend ci
+.\tools\desktop.ps1 -Action dev
 ```
 
-`npm start` 会构建界面资源并启动 Electron。
+开发脚本默认将数据写入 `artifacts/catch-next-data/`。
 
 | 命令 | 用途 |
 | --- | --- |
-| `npm run check` | 后端与契约类型检查、模块依赖检查。 |
-| `npm test` | 业务规则、存储故障和恢复测试。 |
-| `npm run test:electron` | 使用隔离数据运行 Electron 界面回归。 |
-| `npm run dist` | 生成 Windows x64 安装版、ZIP 和 SHA-256 校验文件，输出至 `dist/`。 |
+| `npm.cmd --prefix frontend run check` | 检查 Vue 和 TypeScript 类型。 |
+| `npm.cmd --prefix frontend test` | 运行界面逻辑和 Rust/TypeScript 接口契约测试。 |
+| `cargo test --workspace --locked` | 测试 Rust 业务规则、存储和故障恢复。 |
+| `.\tools\desktop.ps1 -Action pack` | 构建 Windows NSIS 安装包，默认输出到 `artifacts/tauri-next-target/release/bundle/nsis/`。 |
 
-测试使用独立临时数据目录。覆盖范围与环境限制见 [验证记录](docs/VALIDATION.md)。
+## 架构
 
-## 代码结构
+Catch 用 Vue 和 TypeScript 构建界面，由 Tauri 接入 Windows 窗口和系统事件。Rust 维护计时、待办和植物成长的状态，并把数据写到本机。
 
-Catch 使用 **Electron + JavaScript**，数据保存在本地 JSON 文件中。业务规则、应用操作、文件存储、桌面窗口与界面按职责分开，业务写入统一由主进程提交。
+```mermaid
+flowchart LR
+    UI["Vue / TypeScript 界面"] -->|IPC| Host["Tauri · Windows 宿主"]
+    Host --> App["catch-app · 应用服务"]
+    App --> Core["catch-core · 业务规则"]
+    App --> Storage["catch-storage · 本地持久化"]
+```
 
-进一步了解：[架构说明](docs/CATCH_ARCHITECTURE.md) · [业务术语](GLOSSARY.md) · [架构决策](docs/adr/0001-local-modular-architecture.md)。
+- **收起窗口，计时继续。** 应用先保存界面草稿，再释放主 WebView。独立的 Win32 窗口显示悬浮植物，Rust 继续计时。点开植物时，Catch 重建界面并恢复草稿和页面位置。[窗口交接实现](src-tauri/src/main.rs)
+- **一次确认，一起保存。** 点「结束并完成待办」后，最后进展、计时结束、待办完成及相关重复规则和请求回执一起提交。写入中断时，应用会先恢复事务。回执也能在重启后防止同一个请求被重复执行。[回执与故障恢复](docs/FINISH_REPLAY.md)
+
+网页演示共用桌面版的 Vue 组件和样式，在浏览器里使用独立的示例数据。仓库中的 Electron 源码仍用于兼容性测试和部分演示逻辑。[网页演示实现](site/README.md)
 
 ## 许可与致谢
 

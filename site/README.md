@@ -1,8 +1,8 @@
 # Catch 本地演示网站
 
-单页产品介绍与交互演示。网页复用 Catch 的纯计时业务模型和绿芽动画，但使用独立的内存示例数据，不读取桌面应用文件，不保存访客输入。
+单页产品介绍与交互演示。演示窗口使用桌面版的 Vue 组件、样式和素材。浏览器实现提供独立的示例数据，刷新或重置会清除本次输入。
 
-在项目根目录安装开发依赖后：
+在项目根目录安装 `npm ci` 和 `npm --prefix frontend ci` 后：
 
 Windows 可以双击本目录的 `preview.cmd` 启动，也可以在项目根目录运行：
 
@@ -10,9 +10,9 @@ Windows 可以双击本目录的 `preview.cmd` 启动，也可以在项目根目
 node site/tools/serve.cjs
 ```
 
-终端会打印本地地址，默认 `http://127.0.0.1:4173/`。修改 HTML 后刷新；修改 CSS、`site/src/` 或共享代码后，运行 `node site/tools/build.cjs` 再刷新。
+终端会打印本地地址，默认 `http://127.0.0.1:4173/`。修改官网 HTML 后刷新；修改 CSS、演示源代码或桌面组件后，运行 `node site/tools/build.cjs` 再刷新。
 
-`site/app.js` 和 `site/app.css` 是构建结果，不手工修改。页面全部使用相对资源路径，可用于 GitHub Pages 的项目子路径。
+`site/app.js`、`site/app.css` 和 `site/desktop-demo/` 由构建生成。页面全部使用相对资源路径，可用于 GitHub Pages 的项目子路径。
 
 验证演示状态逻辑：
 
@@ -20,13 +20,13 @@ node site/tools/serve.cjs
 node --test site/test/demo-state.test.cjs
 ```
 
-将来发布所需的文件为 `index.html`、构建后的 `app.js`、`app.css` 和 `assets/`。开发源码、工具与测试无需作为网站页面发布。
+静态发布目录包含 `index.html`、`app.js`、`app.css`、`assets/` 和 `desktop-demo/`。
 
-演示包含前后台事项切换、暂停后保留前台、日期切换、颜色说明、结束摘要与重新开始。计时与时间轴规则复用领域模块；前台选择规则和表单提示复用软件的 UI 模块。网页补录按钮仅作悬停提示，完整补录在桌面版中使用。
+演示可关联示例文件、文件夹和网页，设置并预览重复待办，选择植物并模拟投入成长。还可在前后台事项之间切换，结束计时后查看每段投入和进展。文件路径仅作为示例文字；补录和完整记录编辑请使用桌面版。
 
 字体和绿芽的原许可文件随资源保留；代码及素材说明见 `assets/THIRD_PARTY_NOTICES.md`。
 
-仓库 CI 会构建并测试演示网站，将静态发布文件保存为 `Catch-Demo-site` 工作流产物。下载并解压该产物后，根目录包含 `index.html`、`app.js`、`app.css` 与 `assets/`。这一步不会自动部署 GitHub Pages。
+仓库 CI 会构建并测试演示网站，将静态发布目录保存为 `Catch-Demo-site` 工作流产物。部署由独立的 Pages 工作流处理。
 
 ## GitHub Pages
 

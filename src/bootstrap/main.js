@@ -5,6 +5,7 @@ const {configureAppIdentity}=require('../desktop/app-identity')
 const {TrackingRepository}=require('../infrastructure/persistence/tracking-repository')
 const {TodosRepository}=require('../infrastructure/persistence/todos-repository')
 const {Preferences}=require('../infrastructure/persistence/preferences')
+const {ProfileLock}=require('../infrastructure/persistence/profile-lock')
 const {TrackingService}=require('../application/tracking/service')
 const {TodosService}=require('../application/todos/service')
 const {Commands}=require('../application/commands')
@@ -13,7 +14,7 @@ const {installIPC}=require('../desktop/ipc')
 
 if(process.env.CATCH_TEST_DATA)app.setPath('userData',path.resolve(process.env.CATCH_TEST_DATA))
 configureAppIdentity(app)
-let exiting=false,closing=false,timer,services
+let exiting=false,closing=false,timer,services,profileLock
 function report(context,error) {
   console.error(context,error.message)
   if(!process.env.CATCH_TEST_DATA)dialog.showErrorBox('Catch',`${context}\n${error.message}`)
@@ -35,6 +36,7 @@ async function quit() {
 }
 const ready=app.requestSingleInstanceLock()?app.whenReady().then(async()=>{
   const directory=app.getPath('userData'),dependencies={now:Date.now,newId:randomUUID}
+  profileLock=new ProfileLock(directory)
   const tracking=new TrackingService(new TrackingRepository(path.join(directory,'activity-log.json')),dependencies)
   const todos=new TodosService(new TodosRepository(directory),dependencies)
   const preferences=new Preferences(path.join(directory,'config.json'))
@@ -64,4 +66,5 @@ app.on('second-instance',()=>services?.windows.show('main'))
 app.on('activate',()=>services?.windows.show('main'))
 app.on('before-quit',event=>{if(!exiting && services){event.preventDefault();void quit()}})
 app.on('window-all-closed',()=>{if(exiting)app.quit()})
+app.on('will-quit',()=>profileLock?.close())
 module.exports={ready}

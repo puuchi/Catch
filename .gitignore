@@ -6,6 +6,9 @@ artifacts/
 src/ui/generated/
 site/app.js
 site/app.css
+site/assets/plants/
+site/desktop-demo/
+site/demo/model.mjs
 *.log
 .env
 .env.*
@@ -14,6 +17,10 @@ site/app.css
 *.bak
 .DS_Store
 Thumbs.db
+target/
+frontend/dist/
+frontend/public/licenses/
+src-tauri/gen/
 
 # Private audit snapshots and local machine paths are not part of the public project.
 docs/CATCH_PROVENANCE_EVIDENCE.json

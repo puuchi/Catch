@@ -15,6 +15,7 @@ Catch includes interface and interaction contributions by jianxunbi (suppermaker
 | Manrope font | Font authors credited in the bundled OFL file | SIL Open Font License 1.1, `assets/fonts/Manrope-OFL.txt` |
 | Fraunces font | Font authors credited in the bundled OFL file | SIL Open Font License 1.1, `assets/fonts/Fraunces-OFL.txt` |
 | Growing Plant sprite adaptation | Dean Cole, [Growing Plant](https://lottiefiles.com/free-animation/growing-plant-p4PvMFxRbS) | Lottie Simple License (FL 9.13.21), `assets/sprout/LICENSE.txt`; source/hash details in `assets/sprout/SOURCE.json` |
+| Crop sprites | [josehzz](https://opengameart.org/users/josehzz) | CC0, `assets/plants/README.txt`; source details in `assets/plants/SOURCE.json` |
 | Electron runtime | Electron contributors | MIT; `LICENSE.electron.txt` in packaged builds |
 | Chromium and runtime components | Respective contributors | Packaged `LICENSES.chromium.html` |
 
