@@ -38,7 +38,8 @@ Catch 把这几个动作放在同一个桌面小窗里：**记下要做的事，
 
 适用于 **Windows 10 / 11，64 位（x64）**。双击 `.exe` 安装包，再从开始菜单打开 Catch。系统缺少 WebView2 时，首次安装会联网下载。安装后可以离线使用，无需注册账号。
 
-Tauri 安装包目前可从 [GitHub Actions](https://github.com/puuchi/Catch/actions/runs/44342370397) 获取。登录 GitHub 后，在运行页底部下载 `Catch-Tauri-Windows-x64`，解压得到安装包和 `SHA256SUMS.txt`。公开的 `v2.0.0` 下载对应旧 Electron 版。[GitHub Releases](https://github.com/puuchi/Catch/releases)
+- [下载 Catch v3.0.0 Windows x64 安装包](https://github.com/puuchi/Catch/releases/download/v3.0.0/Catch_3.0.0_x64-setup.exe)
+- [SHA-256 校验文件](https://github.com/puuchi/Catch/releases/download/v3.0.0/SHA256SUMS.txt) · [更新说明](https://github.com/puuchi/Catch/releases/tag/v3.0.0)
 
 > 当前安装包尚未签名，Windows 可能显示“未知发布者”或信誉提示。请核对下载来源，需要时对照 Release 中的 `SHA256SUMS.txt` 检查文件。
 
