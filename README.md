@@ -4,7 +4,7 @@
   <p><strong>悬浮在桌面的待办与计时工具，让计划和投入都看得见。</strong></p>
   <p>Windows 10 / 11 · 64 位 · 本地保存 · 无需注册</p>
   <p>
-    <a href="#下载与安装"><img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20%E7%89%88-2e5a49?style=for-the-badge&amp;labelColor=25332d" alt="下载 Windows 版" height="36" align="middle"></a>
+    <a href="https://github.com/puuchi/Catch/releases/download/v3.0.0/Catch_3.0.0_x64-setup.exe"><img src="https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD-Windows%20%E7%89%88-2e5a49?style=for-the-badge&amp;labelColor=25332d" alt="下载 Windows 版" height="36" align="middle"></a>
     <a href="https://puuchi.github.io/Catch/"><img src="https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E4%BD%93%E9%AA%8C-5b7f5d?style=for-the-badge&amp;labelColor=25332d" alt="在线体验 Catch" height="36" align="middle"></a>
     <a href="#快速上手"><img src="https://img.shields.io/badge/%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B-68776f?style=flat-square" alt="快速上手指南" height="24" align="middle"></a>
   </p>
